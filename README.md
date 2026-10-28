@@ -31,7 +31,7 @@ paused most recently. If there is no player with a title, the pill hides. Player
 are keyed by app (`DesktopEntry`, or `Identity` as a fallback), so all tabs of a
 browser share one entry in the allow/block list.
 
-**Waves.** Three translucent sine layers, mirrored around the centre line and
+**Waves.** Three translucent sine layers, mirrored around the center line and
 faded at both ends, pumped by a simulated beat. The pill's wave is filled; the
 popup's is an outline. A wave runs only while it is on screen and its player is
 playing. On pause it eases flat in about a second and then stops completely.
@@ -114,7 +114,11 @@ gnome-extensions enable better-media-controller@idogr
 
 To build a zip instead, run `sh pack.sh`. It writes
 `dist/better-media-controller@idogr.shell-extension.zip` with only the runtime
-files (no tests, tools or docs).
+files (no tests, tools or docs). To install the zip instead of the symlink:
+
+```bash
+gnome-extensions install --force dist/better-media-controller@idogr.shell-extension.zip
+```
 
 ## Testing
 

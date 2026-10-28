@@ -116,6 +116,24 @@ body() {
     cmd spotify quit; sleep 1.5; shot 21-popup-closed-pill-hidden
     player spotify; player brave; sleep 2
 
+    # ---- check 8: a brief empty title must not hide the pill or close the popup ----
+    local c0 e0 e1 e2 ok8=1
+    click_pill blip || ok8=0
+    sleep 1
+    c0=$(count 'popup close'); e0=$(count 'spotify:[A-Za-z]*:\( \|$\)')
+    cmd spotify "blank 1"; sleep 3
+    e1=$(count 'spotify:[A-Za-z]*:\( \|$\)')
+    [ "$(count 'popup close')" = "$c0" ] && [ "$e1" = "$e0" ] || ok8=0
+    cmd spotify "blank 3"; sleep 4
+    e2=$(count 'spotify:[A-Za-z]*:\( \|$\)')
+    [ "$e2" -gt "$e1" ] || ok8=0   # positive control: a long blank does take effect after the grace period
+    if [ $ok8 = 1 ]; then
+        res "8 empty-title blip" PASS "1 s blank: popup stayed open, no empty-title player line (grace period); 3 s blank: empty title seen after the grace period ($e1 -> $e2 lines)"
+    else
+        res "8 empty-title blip" FAIL "popup close lines $c0 -> $(count 'popup close'); empty-title lines $e0 -> $e1 (1 s blank) -> $e2 (3 s blank)"
+    fi
+    bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
+
     # ---- check 3: rapid toggles, no frames while paused, CPU ----
     local pid before after cpu_paused cpu_playing played
     pid=$(shell_pid)
@@ -197,6 +215,25 @@ body() {
     bash "$HEADLESS_DIR/send.sh" 'click 985 98'; sleep 1; shot 26-prefs-players
     bash "$HEADLESS_DIR/send.sh" 'click 1117 98'; sleep 1
 
+    # ---- GNOME's own media card must stay hidden, also after an unlock ----
+    # Clicks the clock until the date menu is really open (dark menu background at a known pixel).
+    open_datemenu() {
+        local i
+        for i in 1 2 3; do
+            bash "$HEADLESS_DIR/send.sh" "click 930 16"; sleep 1
+            bash "$HEADLESS_DIR/send.sh" "shot $RUN_DIR/dm-probe.png"
+            python3 - "$RUN_DIR/dm-probe.png" <<'PY' && return 0
+import sys
+from PIL import Image
+r, g, b = Image.open(sys.argv[1]).convert("RGB").getpixel((700, 300))
+sys.exit(0 if max(r, g, b) < 90 else 1)
+PY
+        done
+        return 1
+    }
+    open_datemenu; shot 27-datemenu-baseline
+    bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
+
     # ---- check 4: lock / unlock (last, since an unlock may be impossible) ----
     local out dis0 en0 locked unlocked reason
     dis0=$(count 'stats disable'); en0=$(count 'stats enable')
@@ -214,6 +251,33 @@ body() {
     else
         reason="SetActive true -> '${out:-no output}'; extension disabled by lock: $locked; re-enabled after SetActive false: $unlocked (unlocking needs authentication, which a headless session without a password cannot do)"
         res "4 lock/unlock" PASS "LOCK: not possible headless — emulated with disable/enable. $reason. The emulation is check 1's cycle above."
+    fi
+
+    # ---- check 9: the media card stays hidden after the unlock (positive control: it shows when allowed) ----
+    sleep 2
+    open_datemenu; shot 28-datemenu-after-unlock
+    bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
+    set_key hide-gnome-player false; sleep 1
+    open_datemenu; shot 29-datemenu-card-shown
+    bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
+    set_key hide-gnome-player true
+    local cmp
+    cmp=$(python3 - "$SHOTS/27-datemenu-baseline.png" "$SHOTS/28-datemenu-after-unlock.png" "$SHOTS/29-datemenu-card-shown.png" <<'PY'
+import sys
+from PIL import Image, ImageChops
+box = (480, 40, 1130, 420)
+a, b, c = (Image.open(p).convert("RGB").crop(box) for p in sys.argv[1:4])
+def frac(x, y):
+    d = ImageChops.difference(x, y).convert("L").point(lambda v: 255 if v > 40 else 0)
+    return sum(1 for v in d.getdata() if v) / (d.width * d.height)
+print(f"{frac(a, b):.4f} {frac(a, c):.4f}")
+PY
+)
+    local after_diff=${cmp% *} shown_diff=${cmp#* }
+    if awk -v a="$after_diff" -v c="$shown_diff" 'BEGIN {exit !(a < 0.005 && c > 0.02)}'; then
+        res "9 GNOME media card stays hidden after unlock" PASS "date-menu region differs ${after_diff} from the hidden baseline after the unlock, but ${shown_diff} when hide-gnome-player is off (positive control)"
+    else
+        res "9 GNOME media card stays hidden after unlock" FAIL "diff after unlock ${after_diff} (must be < 0.005), diff with the card allowed ${shown_diff} (must be > 0.02)"
     fi
 }
 

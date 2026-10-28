@@ -12,6 +12,8 @@ const PREFIX = 'org.mpris.MediaPlayer2.';
 const OBJ = '/org/mpris/MediaPlayer2';
 const ROOT_IFACE = 'org.mpris.MediaPlayer2';
 const PLAYER_IFACE = 'org.mpris.MediaPlayer2.Player';
+// A title that goes empty (players blank it between tracks) is kept this long.
+const TITLE_GRACE_MS = 1500;
 
 const XML = `<node>
  <interface name="${ROOT_IFACE}">
@@ -37,6 +39,9 @@ class PlayerProxy {
         this._onChange = onChange;
         this._getCancellable = getCancellable;
         this.status = 'Stopped';
+        this.title = '';
+        this._graceId = null;
+        this._graceOver = false;
         this.playingSince = 0;
         this.lastActive = 0;
         this._readRoot();
@@ -67,11 +72,37 @@ class PlayerProxy {
     _readPlayer() {
         this.status = this._player.get_cached_property('PlaybackStatus')?.unpack() ?? 'Stopped';
         const md = this._player.get_cached_property('Metadata')?.recursiveUnpack() ?? {};
-        this.title = typeof md['xesam:title'] === 'string' ? md['xesam:title'] : '';
+        const title = typeof md['xesam:title'] === 'string' ? md['xesam:title'] : '';
+        if (title === '' && this.title) {
+            // Chromium-style players send empty metadata between tracks: keep the old
+            // metadata for a moment so the pill and popup do not flicker away.
+            if (!this._graceOver) {
+                if (this._graceId === null) {
+                    this._graceId = this._tracker.addTimeout(TITLE_GRACE_MS, () => {
+                        this._graceId = null;
+                        this._graceOver = true;
+                        this._readPlayer();
+                        this._onChange();
+                        return false;
+                    });
+                }
+                return;
+            }
+        } else {
+            this._cancelGrace();
+        }
+        this.title = title;
         const artist = md['xesam:artist'];
         this.artist = Array.isArray(artist) ? artist.join(', ') : (typeof artist === 'string' ? artist : '');
         this.artUrl = typeof md['mpris:artUrl'] === 'string' ? md['mpris:artUrl'] : '';
         this.lengthUs = Number(md['mpris:length']) || 0;
+    }
+
+    _cancelGrace() {
+        if (this._graceId !== null)
+            this._tracker.remove(this._graceId);
+        this._graceId = null;
+        this._graceOver = false;
     }
 
     // Position has no change signal, so read it when asked. Async so a busy
@@ -116,6 +147,7 @@ class PlayerProxy {
     }
 
     destroy() {
+        this._cancelGrace();
         this._tracker.disconnect(this._player, this._handler);
         this._root = null;
         this._player = null;

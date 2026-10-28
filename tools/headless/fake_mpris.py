@@ -3,7 +3,7 @@
 Usage: python3 fake_mpris.py <name> <playlist.json>   (inside env.sh)
 
 Owns org.mpris.MediaPlayer2.<name>. Control by appending lines to
-$RUN_DIR/mpris-<name>.cmd: play, pause, next, prev, quit, song <index>, seek <seconds>.
+$RUN_DIR/mpris-<name>.cmd: play, pause, next, prev, quit, song <index>, seek <seconds>, blank <seconds>.
 Playlist entries are {title, artist, length_s, art}; art is a file name under
 $RUN_DIR/covers (or an absolute path) or null. Writes its pid to
 $RUN_DIR/mpris-<name>.pid so stop.sh can kill it.
@@ -72,6 +72,8 @@ def position():
 
 def metadata():
     song = playlist[state["index"]]
+    if state.get("blank"):
+        song = {**song, "title": "", "artist": ""}
     md = {
         "mpris:trackid": GLib.Variant("o", f"/fake/{name}/{state['index']}"),
         "xesam:title": GLib.Variant("s", song["title"]),
@@ -139,6 +141,12 @@ def song(index):
     bus.emit_signal(None, OBJ, "org.mpris.MediaPlayer2.Player", "Seeked", GLib.Variant("(x)", (0,)))
 
 
+def unblank():
+    state["blank"] = False
+    changed("Metadata")
+    return False
+
+
 def command(cmd):
     parts = cmd.split()
     op = parts[0] if parts else ""
@@ -154,6 +162,11 @@ def command(cmd):
         song(state["index"] + 1)
     elif op == "prev":
         song(state["index"] - 1)
+    elif op == "blank" and len(parts) > 1:
+        # Empty title for N seconds, as some players do between tracks.
+        state["blank"] = True
+        changed("Metadata")
+        GLib.timeout_add(int(float(parts[1]) * 1000), unblank)
     elif op == "seek" and len(parts) > 1:
         state["base"] = float(parts[1])
         state["since"] = time.monotonic()
