@@ -1,0 +1,45 @@
+/* Better Media Controller: panel pill */
+.bmc-button {
+    -minimum-hpadding: 2px;
+    -natural-hpadding: 2px;
+    background-color: transparent;
+}
+
+.bmc-button:hover,
+.bmc-button:focus,
+.bmc-button:active {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.bmc-pill {
+    height: 26px;
+    background-color: #1b232c;
+    border-radius: 13px;
+}
+
+.bmc-row {
+    spacing: 6px;
+    padding: 0 8px;
+}
+
+.bmc-label {
+    color: #e8eef4;
+}
+
+.bmc-controls {
+    spacing: 2px;
+}
+
+.bmc-btn {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 11px;
+    color: #e8eef4;
+}
+
+.bmc-btn:hover,
+.bmc-btn:focus {
+    background-color: rgba(255, 255, 255, 0.14);
+}
