@@ -40,7 +40,6 @@ export class GnomePlayerHider {
                 if (this._original.has(message))
                     message.visible = this._original.get(message);
             }
-            this._hooks.clear();
             this._original.clear();
         }
     }
@@ -52,42 +51,40 @@ export class GnomePlayerHider {
         const live = new Set(view._playerToMessage.values());
         for (const m of [...this._original.keys()]) {
             if (!live.has(m)) {
+                this._unhook(m);
                 this._original.delete(m);
-                this._hooks.delete(m);
             }
         }
         for (const message of live) {
             if (!this._original.has(message))
                 this._original.set(message, message.visible);
             if (!this._hooks.has(message)) {
-                this._hooks.set(message, this._tracker.connect(message, 'notify::visible', () => {
+                const visible = this._tracker.connect(message, 'notify::visible', () => {
                     if (this._hiding && !this._forcing && message.visible) {
                         this._forcing = true;
                         message.visible = false;
                         this._forcing = false;
                     }
-                }));
-                // Drop the hook while the message is still alive; disconnecting from a
-                // disposed object later would log a CRITICAL. This handler dies with it.
-                message.connect('destroy', () => {
+                });
+                // Drop the hooks while the message is still alive; disconnecting from a
+                // disposed object later would log a CRITICAL.
+                const destroy = this._tracker.connect(message, 'destroy', () => {
                     this._unhook(message);
-                    this._hooks.delete(message);
                     this._original.delete(message);
                 });
+                this._hooks.set(message, {visible, destroy});
             }
             message.visible = false;
         }
     }
 
     _unhook(message) {
-        const id = this._hooks.get(message);
-        if (id === undefined)
+        const ids = this._hooks.get(message);
+        if (!ids)
             return;
-        try {
-            this._tracker.disconnect(message, id);
-        } catch (_e) {
-            // The message was already finalized.
-        }
+        this._hooks.delete(message);
+        this._tracker.disconnect(message, ids.visible);
+        this._tracker.disconnect(message, ids.destroy);
     }
 
     _release() {
