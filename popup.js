@@ -41,7 +41,7 @@ function roundedRect(cr, x, y, w, h, r) {
 // Blur by shrinking the cover to a tiny image (applying saturation and brightness
 // on it) and drawing that tiny image back up with Cairo's smooth filter. The tiny
 // image becomes an ARGB32 surface, so no GDK/GTK is involved.
-const MAX_TINY = 128;
+const MAX_TINY = 48;
 
 function tinyCover(pb, tw, th, radius, sat, bright) {
     const f = radius > 0 ? radius * 0.8 + 1 : 1;
@@ -53,12 +53,17 @@ function tinyCover(pb, tw, th, radius, sat, bright) {
     const px = small.get_pixels();
     const surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, sw, sh);
     const c = new Cairo.Context(surface);
+    const adjust = sat !== 1 || bright !== 1;
     for (let y = 0; y < sh; y++) {
         for (let x = 0; x < sw; x++) {
             const i = y * stride + x * n;
-            const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            const ch = k => Math.max(0, Math.min(255, (gray + (px[i + k] - gray) * sat) * bright)) / 255;
-            c.setSourceRGB(ch(0), ch(1), ch(2));
+            if (adjust) {
+                const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+                const ch = k => Math.max(0, Math.min(255, (gray + (px[i + k] - gray) * sat) * bright)) / 255;
+                c.setSourceRGB(ch(0), ch(1), ch(2));
+            } else {
+                c.setSourceRGB(px[i] / 255, px[i + 1] / 255, px[i + 2] / 255);
+            }
             c.rectangle(x, y, 1, 1);
             c.fill();
         }
@@ -385,6 +390,8 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
     // Reads the position asynchronously; ignores the answer if the card or
     // popup went away meanwhile. lengthUs 0 shows 0%.
     poll() {
+        if (this._destroyed)
+            return;
         const length = this._player.lengthUs;
         if (length <= 0) {
             this._setProgress(0);
