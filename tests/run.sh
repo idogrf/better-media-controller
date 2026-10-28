@@ -6,3 +6,5 @@ for t in *.test.js; do
     echo "== $t"
     gjs -m "$t"
 done
+echo "== nolog.sh"
+sh ./nolog.sh

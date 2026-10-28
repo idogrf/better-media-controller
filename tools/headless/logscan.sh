@@ -4,7 +4,7 @@
 # Usage: bash tools/headless/logscan.sh <shell.log>
 LOG="$1"
 [ -f "$LOG" ] || { echo "usage: logscan.sh <shell.log>" >&2; exit 2; }
-EXT='better-media-controller'
+EXT='better-media-controller@idogr'
 PAT='JS ERROR|JS WARNING|Gjs-CRITICAL|Gjs-WARNING|already disposed|TypeError|Stack trace|Error'
 ext=$(grep -- "$EXT" "$LOG" | grep -v '\[bmc-debug\] ')
 err=$(grep -E -- "$PAT" "$LOG")

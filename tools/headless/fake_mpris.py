@@ -33,6 +33,7 @@ XML = """<node>
   <method name="PlayPause"/><method name="Stop"/><method name="Play"/>
   <method name="Seek"><arg type="x" direction="in"/></method>
   <method name="SetPosition"><arg type="o" direction="in"/><arg type="x" direction="in"/></method>
+  <signal name="Seeked"><arg type="x"/></signal>
   <property name="PlaybackStatus" type="s" access="read"/>
   <property name="LoopStatus" type="s" access="readwrite"/>
   <property name="Rate" type="d" access="readwrite"/>
@@ -134,7 +135,8 @@ def song(index):
     state["index"] = index % len(playlist)
     state["base"] = 0.0
     state["since"] = time.monotonic()
-    changed("Metadata", "Position")
+    changed("Metadata")
+    bus.emit_signal(None, OBJ, "org.mpris.MediaPlayer2.Player", "Seeked", GLib.Variant("(x)", (0,)))
 
 
 def command(cmd):
@@ -175,8 +177,9 @@ def on_get(_conn, _sender, _path, iface, prop):
 for node in info:
     bus.register_object(OBJ, node, on_method, on_get, None)
 
-offset = 0
+# Start after any old commands so a relaunch never replays history (e.g. a `quit`).
 open(cmd_path, "a").close()
+offset = os.path.getsize(cmd_path)
 
 
 def poll():

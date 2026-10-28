@@ -13,7 +13,7 @@ rm -f "$RUN_DIR/shell.pid" "$RUN_DIR/driver.pid"
 
 # Compare before and after only, so the guard still works once the extension
 # is installed for real.
-bash "$HEADLESS_DIR/real-state.sh" > "$RUN_DIR/real-state.after"
+bash "$HEADLESS_DIR/real-state.sh" > "$RUN_DIR/real-state.after" || { echo "real-state check could not run (is env.sh sourced in this shell?)" >&2; exit 1; }
 if ! cmp -s "$RUN_DIR/real-state.before" "$RUN_DIR/real-state.after"; then
     echo "REAL SESSION TOUCHED — investigate before continuing" >&2
     exit 1
