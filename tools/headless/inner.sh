@@ -15,6 +15,8 @@ GSETTINGS_SCHEMA_DIR="$REPO/schemas" gsettings set org.gnome.shell.extensions.be
 
 # Without a session id the shell asks logind for the caller's session, which resolves
 # to the user's REAL session. A bogus id makes that lookup fail, so the headless
-# shell never watches, inhibits or sets hints on the real session.
+# shell never watches, inhibits or sets hints on the real session. The resulting
+# "Could not get proxy for session bmc-headless" CRITICAL and the unhandled-rejection
+# warning in shell.log are expected.
 export XDG_SESSION_ID=bmc-headless
 exec gnome-shell --headless --wayland --virtual-monitor 1600x900
