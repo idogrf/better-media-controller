@@ -4,8 +4,8 @@
 # Usage: bash tools/headless/logscan.sh <shell.log>
 LOG="$1"
 [ -f "$LOG" ] || { echo "usage: logscan.sh <shell.log>" >&2; exit 2; }
-EXT='better-media-controller@idogr|better_media_controller|better-media-controller_idogr'
-PAT='JS ERROR|JS WARNING|Gjs-CRITICAL|Gjs-WARNING|already disposed|TypeError|Stack trace|Error'
+EXT='better-media-controller@idogr|better_media_controller|better-media-controller_idogr|\.bmc-[a-z]'
+PAT='JS ERROR|JS WARNING|Gjs-CRITICAL|Gjs-WARNING|St-CRITICAL|already disposed|TypeError|Stack trace|Error'
 ext=$(grep -E -- "$EXT" "$LOG" | grep -v '\[bmc-debug\] ')
 err=$(grep -E -- "$PAT" "$LOG")
 other=$(grep -v -E -- "$PAT" "$LOG" | grep -v -E -- "$EXT")

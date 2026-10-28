@@ -406,8 +406,9 @@ export const Pill = GObject.registerClass({
         const playing = this._shown() && this._label.mapped && this._label.has_allocation() &&
             this._player.status === 'Playing';
         const width = s.get_int('label-width');
-        const textWidth = Math.ceil(this._label.get_preferred_width(-1)[1]);
-        const overflow = playing && s.get_boolean('label-scroll') ? textWidth - width : 0;
+        const textWidth = playing && s.get_boolean('label-scroll')
+            ? Math.ceil(this._label.get_preferred_width(-1)[1]) : 0;
+        const overflow = textWidth > 0 ? textWidth - width : 0;
         const speed = s.get_int('label-scroll-speed');
         const key = overflow > 0 ? `${overflow}|${speed}|${this._rtl}|${this._text}` : '';
         if (key === this._marqueeKey)
