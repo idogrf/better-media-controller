@@ -5,7 +5,6 @@
 import Cairo from 'gi://cairo';
 import Clutter from 'gi://Clutter';
 import GdkPixbuf from 'gi://GdkPixbuf';
-import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
@@ -14,7 +13,8 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {BLUE} from './colors.js';
-import {coverPixbuf, waveColors} from './covers.js';
+import {appIconFor} from './applogo.js';
+import {coverPixbuf, resolveCover, waveColors} from './covers.js';
 import {activePlayer, popupOrder, visiblePlayers} from './players.js';
 import {Tracker, debugLog} from './track.js';
 import {WaveArea} from './wave.js';
@@ -225,6 +225,8 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
         this._colorKey = '';
         this._colorToken = 0;
         this._coverToken = 0;
+        this._coverUri = null;
+        this._coverCancel = null;
         this._progress = 0;
         this._hasArt = false;
         this._lastStatus = null;
@@ -317,7 +319,7 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
 
     _artStyle() {
         const radius = Math.max(4, this._settings.get_int('popup-radius') * 0.55);
-        const url = this._player.artUrl;
+        const url = this._coverUri;
         const base = `border-radius: ${Math.round(radius)}px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);`;
         return this._hasArt
             ? `${base} background-image: url("${url}"); background-size: ${COVER}px ${COVER}px;`
@@ -347,41 +349,44 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
     _loadArt() {
         const url = this._player.artUrl;
         this._artKey = url;
+        this._coverUri = null;
         this._hasArt = false;
-        if (url?.startsWith('file://')) {
-            try {
-                this._hasArt = fileExists(url);
-            } catch (_e) {
-                this._hasArt = false;
-            }
-        }
-        if (!this._hasArt) {
-            const app = appIconFor(this._player.desktopEntry);
-            if (app)
-                this._artIcon.gicon = app;
-            else
-                this._artIcon.icon_name = 'audio-x-generic-symbolic';
-        }
-        this._artIcon.visible = !this._hasArt;
+        const app = appIconFor(this._player.desktopEntry, this._player.identity);
+        if (app)
+            this._artIcon.gicon = app;
+        else
+            this._artIcon.icon_name = 'audio-x-generic-symbolic';
+        this._artIcon.visible = true;
         this._art.style = this._artStyle();
         const token = ++this._coverToken;
+        this._tracker.cancel(this._coverCancel);
+        const cancellable = this._tracker.newCancellable();
+        this._coverCancel = cancellable;
         this._bg.setCover(null);
-        if (this._hasArt) {
-            coverPixbuf(url).then(pb => {
+        this._syncColors();
+        resolveCover(url, cancellable).then(uri => {
+            if (this._destroyed || token !== this._coverToken || !uri)
+                return;
+            this._coverUri = uri;
+            this._hasArt = true;
+            this._artIcon.visible = false;
+            this._art.style = this._artStyle();
+            this._syncColors();
+            coverPixbuf(uri).then(pb => {
                 if (!this._destroyed && token === this._coverToken)
                     this._bg.setCover(pb);
             });
-        }
+        });
     }
 
     _syncColors() {
         const s = this._settings;
-        const key = `${s.get_string('wave-color-mode')}|${s.get_string('wave-custom-color')}|${this._player.artUrl}`;
+        const key = `${s.get_string('wave-color-mode')}|${s.get_string('wave-custom-color')}|${this._coverUri}`;
         if (key === this._colorKey)
             return;
         this._colorKey = key;
         const token = ++this._colorToken;
-        waveColors(s, this._player.artUrl).then(colors => {
+        waveColors(s, this._coverUri).then(colors => {
             if (!this._destroyed && token === this._colorToken)
                 this._wave.setColors(colors);
         });
@@ -417,18 +422,6 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
         this._tracker.destroy();
     }
 });
-
-function fileExists(url) {
-    return GLib.file_test(GLib.filename_from_uri(url)[0], GLib.FileTest.EXISTS);
-}
-
-function appIconFor(entry) {
-    if (!entry)
-        return null;
-    const sys = Shell.AppSystem.get_default();
-    const app = sys.lookup_app(`${entry}.desktop`) ?? sys.lookup_app(entry);
-    return app?.get_icon() ?? null;
-}
 
 export class PopupStack {
     constructor(settings, watcher) {

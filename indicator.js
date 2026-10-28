@@ -2,15 +2,14 @@
 // The panel pill: wave behind an icon (app/cover cross-fade), a marquee label
 // and prev/play/next buttons. Every timer goes through the pill's own Tracker.
 import Clutter from 'gi://Clutter';
-import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
-import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
-import {waveColors} from './covers.js';
+import {appIconFor} from './applogo.js';
+import {resolveCover, waveColors} from './covers.js';
 import {BLUE} from './colors.js';
 import {labelText} from './label.js';
 import {activePlayer, visiblePlayers} from './players.js';
@@ -59,6 +58,9 @@ export const Pill = GObject.registerClass({
         this._text = '';
         this._rtl = false;
         this._hasCover = false;
+        this._artUrl = null;
+        this._coverUri = null;
+        this._coverCancel = null;
         this._placeIdle = null;
 
         this._pill = new St.Widget({
@@ -263,38 +265,49 @@ export const Pill = GObject.registerClass({
 
     // --- icon -------------------------------------------------------------------
 
-    _coverAvailable() {
-        const url = this._player?.artUrl;
-        if (!url?.startsWith('file://'))
-            return false;
-        try {
-            return Gio.File.new_for_uri(url).query_exists(null);
-        } catch (_e) {
-            return false;
-        }
-    }
-
     _applyIcon() {
         const p = this._player;
-        const size = this._settings.get_int('icon-size');
-        const key = `${p.appKey}|${p.desktopEntry}|${p.artUrl}|${size}`;
+        const key = `${p.appKey}|${p.desktopEntry}|${p.identity}`;
         if (key !== this._iconKey) {
             this._iconKey = key;
-            const sys = Shell.AppSystem.get_default();
-            const entry = p.desktopEntry;
-            const app = entry ? (sys.lookup_app(`${entry}.desktop`) ?? sys.lookup_app(entry)) : null;
-            const gicon = app?.get_icon();
+            const gicon = appIconFor(p.desktopEntry, p.identity);
             if (gicon)
                 this._appIcon.gicon = gicon;
             else
                 this._appIcon.icon_name = 'audio-x-generic-symbolic';
-            this._hasCover = this._coverAvailable();
-            this._cover.style = this._hasCover
-                ? `background-image: url("${p.artUrl}"); background-size: ${size}px ${size}px; ` +
-                  `border-radius: ${Math.ceil(size / 2)}px;`
-                : '';
         }
+        if (p.artUrl !== this._artUrl)
+            this._resolveArt(p.artUrl);
+        this._applyCoverStyle();
         this._fadeIcon();
+    }
+
+    // The app logo stays until the resolved cover (local file, cache or download) is ready.
+    _resolveArt(url) {
+        this._artUrl = url;
+        this._coverUri = null;
+        this._hasCover = false;
+        this._tracker.cancel(this._coverCancel);
+        const cancellable = this._tracker.newCancellable();
+        this._coverCancel = cancellable;
+        resolveCover(url, cancellable).then(uri => {
+            if (this._destroyed || cancellable !== this._coverCancel || !uri)
+                return;
+            this._coverUri = uri;
+            this._hasCover = true;
+            this._applyCoverStyle();
+            this._applyWave();
+            this._syncIconTimer();
+            this._fadeIcon();
+        });
+    }
+
+    _applyCoverStyle() {
+        const size = this._settings.get_int('icon-size');
+        this._cover.style = this._coverUri
+            ? `background-image: url("${this._coverUri}"); background-size: ${size}px ${size}px; ` +
+              `border-radius: ${Math.ceil(size / 2)}px;`
+            : '';
     }
 
     _wantCover() {
@@ -345,12 +358,12 @@ export const Pill = GObject.registerClass({
         this._wave.setIntensity(s.get_int('wave-intensity'));
         this._wave.setSpeed(s.get_int('wave-speed'));
         this._wave.setPlaying(p.status === 'Playing');
-        const key = `${s.get_string('wave-color-mode')}|${s.get_string('wave-custom-color')}|${p.artUrl}`;
+        const key = `${s.get_string('wave-color-mode')}|${s.get_string('wave-custom-color')}|${this._coverUri}`;
         if (key === this._colorKey)
             return;
         this._colorKey = key;
         const token = ++this._colorToken;
-        waveColors(s, p.artUrl).then(colors => {
+        waveColors(s, this._coverUri).then(colors => {
             if (!this._destroyed && token === this._colorToken)
                 this._wave.setColors(colors);
         });
