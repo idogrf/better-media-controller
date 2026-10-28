@@ -181,6 +181,19 @@ body() {
     else
         res "10 https cover art" FAIL "$why10"
     fi
+    # ---- check 11: the player quits while its cover downloads ----
+    local ok11=1 why11="" scan11
+    cmd spotify "song 6"; sleep 1.2
+    cmd spotify quit; sleep 4.5
+    bash "$HEADLESS_DIR/logscan.sh" "$LOG" > "$RUN_DIR/logscan-11.txt" 2>&1 || { ok11=0; why11="$why11 logscan found extension lines: $(sed -n '/^== EXTENSION/,/^== ERRORS/p' "$RUN_DIR/logscan-11.txt" | head -5 | tr '\n' ' ');"; }
+    ls "$CD" | grep -q '\.part$' && { ok11=0; why11="$why11 a .part file is left;"; }
+    [ -e "$CD/$(md5 "$url_slow2")" ] && { ok11=0; why11="$why11 the cancelled cover was cached;"; }
+    if [ $ok11 = 1 ]; then
+        res "11 player quits mid-download" PASS "pill and card cancelled the in-flight download: no extension log lines, no .part, no cache file for the cancelled URL"
+    else
+        res "11 player quits mid-download" FAIL "$why11"
+    fi
+    player spotify; sleep 1.5
     gsettings reset "$B" icon-mode
     bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
     player brave; sleep 2

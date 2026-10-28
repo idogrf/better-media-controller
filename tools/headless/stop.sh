@@ -24,7 +24,7 @@ if [ -f "$RUN_DIR/runtime-dir" ]; then
         *..*) ;;
         /tmp/bmc-rt-*)
             if [ "$(dirname "$RT")" = /tmp ] && [ -d "$RT" ] && [ ! -L "$RT" ]; then
-                rm -rf "$RT"
+                rm -rf --one-file-system "$RT"
             fi
             ;;
     esac

@@ -46,15 +46,22 @@ async function download(url, cancellable) {
 
 // Shares one download per URL; a caller that finds it cancelled by the first caller retries.
 async function fetchOnce(url, cancellable) {
-    let pending = downloads.get(url);
-    if (!pending) {
-        pending = download(url, cancellable).finally(() => downloads.delete(url));
-        downloads.set(url, pending);
+    for (;;) {
+        let pending = downloads.get(url);
+        if (!pending) {
+            const own = download(url, cancellable).finally(() => {
+                if (downloads.get(url) === own)
+                    downloads.delete(url);
+            });
+            pending = own;
+            downloads.set(url, own);
+        }
+        const path = await pending;
+        // Another caller's cancellation does not end ours: take over as the shared download.
+        if (path === CANCELLED && !cancellable.is_cancelled())
+            continue;
+        return path === CANCELLED ? null : path;
     }
-    let path = await pending;
-    if (path === CANCELLED && !cancellable.is_cancelled())
-        path = await download(url, cancellable);
-    return path === CANCELLED ? null : path;
 }
 
 // Resolves an artUrl to a local file:// URI, or null (nothing to show, failed, cancelled).

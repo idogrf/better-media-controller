@@ -172,6 +172,11 @@ export const Pill = GObject.registerClass({
         if (!this._player) {
             this._cancelHide();
             this._resetCollapse();
+            this._tracker.cancel(this._coverCancel);
+            this._coverCancel = null;
+            this._artUrl = null;
+            this._coverUri = null;
+            this._hasCover = false;
             this.container.hide();
             this._wave.setPlaying(false);
             this._syncMarquee();
@@ -291,7 +296,7 @@ export const Pill = GObject.registerClass({
         const cancellable = this._tracker.newCancellable();
         this._coverCancel = cancellable;
         resolveCover(url, cancellable).then(uri => {
-            if (this._destroyed || cancellable !== this._coverCancel || !uri)
+            if (this._destroyed || !this._player || cancellable !== this._coverCancel || !uri)
                 return;
             this._coverUri = uri;
             this._hasCover = true;
