@@ -22,16 +22,18 @@ function normColors(colors) {
 }
 
 export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingArea {
-    // params: {mode: 'pulse'|'outline', colors: [hex x3], intensity, speed, fade, name, settings}
+    // params: {mode: 'pulse'|'outline', colors: [hex x3], intensity, speed, fade, name, settings,
+    // clipRadius (corner radius of the clip; default half the height)}
     // Any other params are forwarded to St.DrawingArea (actor props).
     constructor({mode = 'pulse', colors, intensity = 100, speed = 100, fade = 1,
-        name = mode, settings = null, ...actorProps} = {}) {
+        name = mode, settings = null, clipRadius = null, ...actorProps} = {}) {
         super(actorProps);
         this._mode = mode;
         this._rgb = normColors(colors);
         this._intensity = intensity;
         this._speed = speed;
         this._fade = fade;
+        this._clipRadius = clipRadius;
         this._label = name;
         this._settings = settings;
         this._tracker = new Tracker();
@@ -62,6 +64,11 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
 
     setColors(colors) {
         this._rgb = normColors(colors);
+        this.queue_repaint();
+    }
+
+    setClipRadius(r) {
+        this._clipRadius = r;
         this.queue_repaint();
     }
 
@@ -115,7 +122,7 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
             const [w, h] = this.get_surface_size();
             if (this._level > 0 && w > 0 && h > 0) {
                 // Nothing may draw outside the pill's rounded ends.
-                const r = Math.min(h, w) / 2;
+                const r = Math.min(this._clipRadius ?? h / 2, h / 2, w / 2);
                 cr.newPath();
                 cr.moveTo(r, 0);
                 cr.lineTo(w - r, 0);
