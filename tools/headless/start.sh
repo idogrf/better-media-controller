@@ -28,6 +28,10 @@ done
 glib-compile-schemas "$REPO/schemas"
 ln -s "$REPO" "$RUN_DIR/data/gnome-shell/extensions/better-media-controller@idogr"
 
+# Local cover server (127.0.0.1, random port); stop.sh kills it by http.pid.
+RUN_DIR="$RUN_DIR" setsid /usr/bin/python3 "$HEADLESS_DIR/http_server.py" > "$RUN_DIR/http.out" 2>&1 &
+for _ in $(seq 50); do [ -s "$RUN_DIR/http.port" ] && break; sleep 0.1; done
+
 # Real-session guard: record the real extension state now, compare in stop.sh.
 bash "$HEADLESS_DIR/real-state.sh" > "$RUN_DIR/real-state.before"
 

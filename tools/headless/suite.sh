@@ -134,6 +134,57 @@ body() {
     fi
     bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
 
+    # ---- check 10: http cover art (logo while downloading, cache, 404, cancel) ----
+    local HP CD url_slow url_slow2 L0 ok10=1 why10="" r1 r2 r3 hits0 hits1 stray
+    HP=$(cat "$RUN_DIR/http.port"); CD="$RUN_DIR/cache/better-media-controller/covers"
+    url_slow="http://127.0.0.1:$HP/slow/cover-6.jpg"; url_slow2="http://127.0.0.1:$HP/slow/cover-7.jpg"
+    md5() { printf '%s' "$1" | md5sum | cut -d' ' -f1; }
+    img() { python3 "$HEADLESS_DIR/imgstat.py" "$@"; }
+    local PILL="590 6 611 27" CARD="520 70 600 145"
+    cmd brave quit; set_key icon-mode cover; sleep 1.5
+    click_pill covers || { ok10=0; why10="$why10 popup did not open;"; }
+    sleep 1
+    L0=$(wc -l < "$LOG")
+    cmd spotify "song 4"; sleep 1.2; shot 30-cover-downloading
+    local logo_pill logo_card part_mid
+    # The card's logo must equal the one shot 17 shows for a track without art (the app's own logo).
+    logo_pill=$(img sat "$SHOTS/30-cover-downloading.png" $PILL); logo_card=$(img diff "$SHOTS/30-cover-downloading.png" "$SHOTS/17-popup-noart.png" $CARD)
+    part_mid=$(ls "$CD" 2>/dev/null | grep -c '\.part$')
+    awk -v a="$logo_pill" -v b="$logo_card" 'BEGIN {exit !(a > 0.12 && b < 0.03)}' || { ok10=0; why10="$why10 (a) no app logo while downloading (pill colored fraction $logo_pill, card diff to the logo $logo_card);"; }
+    [ "$part_mid" -ge 1 ] || { ok10=0; why10="$why10 (a) no .part file while the download runs;"; }
+    sleep 4; shot 31-cover-downloaded
+    r1=$(img sat "$SHOTS/31-cover-downloaded.png" $PILL); r2=$(img diff "$SHOTS/31-cover-downloaded.png" "$SHOTS/17-popup-noart.png" $CARD)
+    awk -v a="$r1" -v b="$r2" 'BEGIN {exit !(a < 0.12 && b > 0.5)}' || { ok10=0; why10="$why10 (b) cover did not replace the logo (pill colored fraction $r1, card diff to the logo $r2);"; }
+    [ -s "$CD/$(md5 "$url_slow")" ] && ! ls "$CD" | grep -q '\.part$' || { ok10=0; why10="$why10 (b) cache file missing or .part left;"; }
+    [ ! -e "$HOME/.cache/better-media-controller" ] || { ok10=0; why10="$why10 REAL ~/.cache/better-media-controller exists;"; }
+    # (c) the same track again: shown from the cache, no new request
+    cmd spotify "song 0"; sleep 1.5; hits0=$(grep -c 'cover-6' "$RUN_DIR/http.log")
+    cmd spotify "song 4"; sleep 1.5; shot 32-cover-from-cache; hits1=$(grep -c 'cover-6' "$RUN_DIR/http.log")
+    r3=$(img diff "$SHOTS/31-cover-downloaded.png" "$SHOTS/32-cover-from-cache.png" $CARD)
+    [ "$hits0" = "$hits1" ] && awk -v a="$r3" 'BEGIN {exit !(a < 0.05)}' || { ok10=0; why10="$why10 (c) request lines $hits0 -> $hits1, cover diff $r3;"; }
+    # (d) 404: the logo stays, nothing is logged
+    cmd spotify "song 5"; sleep 2.5; shot 33-cover-404
+    logo_pill=$(img sat "$SHOTS/33-cover-404.png" $PILL); logo_card=$(img diff "$SHOTS/33-cover-404.png" "$SHOTS/17-popup-noart.png" $CARD)
+    stray=$(tail -n +$((L0 + 1)) "$LOG" | grep -v 'bmc-debug' | grep -c -i -E 'cover|better-media|bmc|JS ERROR|Gjs')
+    awk -v a="$logo_pill" -v b="$logo_card" 'BEGIN {exit !(a > 0.12 && b < 0.03)}' && grep -q 'HEAD /missing/' "$RUN_DIR/http.log" && [ "$stray" = 0 ] \
+        || { ok10=0; why10="$why10 (d) 404: logo pill $logo_pill card $logo_card, stray log lines $stray;"; }
+    # (e) a track change mid-download cancels it: no .part, no cache file, no wrong cover
+    cmd spotify "song 6"; sleep 1.2
+    local part_e; part_e=$(ls "$CD" 2>/dev/null | grep -c '\.part$')
+    cmd spotify "song 0"; sleep 1.5; shot 34-cover-after-change
+    sleep 4; shot 35-cover-cancel-settled
+    r1=$(img diff "$SHOTS/34-cover-after-change.png" "$SHOTS/35-cover-cancel-settled.png" $CARD); r2=$(img diff "$SHOTS/34-cover-after-change.png" "$SHOTS/35-cover-cancel-settled.png" $PILL)
+    [ "$part_e" -ge 1 ] && ! ls "$CD" | grep -q '\.part$' && [ ! -e "$CD/$(md5 "$url_slow2")" ] && awk -v a="$r1" -v b="$r2" 'BEGIN {exit !(a < 0.02 && b < 0.02)}' \
+        || { ok10=0; why10="$why10 (e) .part mid-download $part_e, leftovers: $(ls "$CD" | grep -c '\.part$'), cache file for cancelled url: $([ -e "$CD/$(md5 "$url_slow2")" ] && echo yes || echo no), cover changed after settling (card $r1, pill $r2);"; }
+    if [ $ok10 = 1 ]; then
+        res "10 https cover art" PASS "(a) the app logo (pill and card) while downloading, a .part file present mid-download; (b) cover shown after download, cached as md5(url) in the run's cache, real ~/.cache untouched; (c) second play: $hits1 request lines, unchanged; (d) 404 keeps the logo, no log lines; (e) cancelled mid-download: no .part, no cache file, no wrong cover"
+    else
+        res "10 https cover art" FAIL "$why10"
+    fi
+    gsettings reset "$B" icon-mode
+    bash "$HEADLESS_DIR/send.sh" 'key ff1b'; sleep 1
+    player brave; sleep 2
+
     # ---- check 3: rapid toggles, no frames while paused, CPU ----
     local pid before after cpu_paused cpu_playing played
     pid=$(shell_pid)

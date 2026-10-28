@@ -2,5 +2,8 @@
   {"title": "The Fate of Ophelia (The Chainsmokers Remix)", "artist": "Taylor Swift", "length_s": 210, "art": "cover-1.jpg"},
   {"title": "עבודה עברית", "artist": "להקה מקומית", "length_s": 185, "art": "cover-2.jpg"},
   {"title": "Clocks", "artist": "Coldplay", "length_s": 307, "art": "cover-3.jpg"},
-  {"title": "No Art Track", "artist": "", "length_s": 120, "art": null}
+  {"title": "No Art Track", "artist": "", "length_s": 120, "art": null},
+  {"title": "Remote Slow Cover", "artist": "Delayed Band", "length_s": 200, "art": "http://127.0.0.1:{port}/slow/cover-6.jpg"},
+  {"title": "Remote Missing Cover", "artist": "Not Found", "length_s": 200, "art": "http://127.0.0.1:{port}/missing/cover.jpg"},
+  {"title": "Remote Slow Two", "artist": "Cancelled Band", "length_s": 200, "art": "http://127.0.0.1:{port}/slow/cover-7.jpg"}
 ]

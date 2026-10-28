@@ -7,6 +7,7 @@ for f in "$RUN_DIR"/mpris-*.pid; do
     [ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null
     rm -f "$f"
 done
+[ -f "$RUN_DIR/http.pid" ] && { kill "$(cat "$RUN_DIR/http.pid")" 2>/dev/null; rm -f "$RUN_DIR/http.pid"; }
 [ -f "$RUN_DIR/prefs.pid" ] && { kill "$(cat "$RUN_DIR/prefs.pid")" 2>/dev/null; rm -f "$RUN_DIR/prefs.pid"; }
 [ -f "$RUN_DIR/driver.pid" ] && { echo quit >> "$RUN_DIR/cmds"; sleep 0.5; kill "$(cat "$RUN_DIR/driver.pid")" 2>/dev/null; }
 [ -f "$RUN_DIR/shell.pid" ] && kill -- -"$(cat "$RUN_DIR/shell.pid")" 2>/dev/null
@@ -16,6 +17,9 @@ rm -f "$RUN_DIR/shell.pid" "$RUN_DIR/driver.pid"
 if [ -f "$RUN_DIR/runtime-dir" ]; then
     RT="$(cat "$RUN_DIR/runtime-dir")"
     # Only ever remove a plain directory directly under /tmp named bmc-rt-*.
+    # gvfsd-fuse (started by GVfs for http covers) keeps a mount inside it; end it first.
+    for pid in $(pgrep -f "^/usr/libexec/gvfsd-fuse $RT/"); do kill "$pid" 2>/dev/null; done
+    sleep 0.5
     case "$RT" in
         *..*) ;;
         /tmp/bmc-rt-*)

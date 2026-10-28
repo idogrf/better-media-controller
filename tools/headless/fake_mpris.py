@@ -70,6 +70,15 @@ def position():
     return state["base"] + extra
 
 
+def http_port():
+    with open(os.path.join(run_dir, "http.port")) as f:
+        return f.read().strip()
+
+
+# Installed apps (visible to the headless shell) whose logos stand in for the fakes' own.
+DESKTOP_ENTRIES = {"spotify": "org.gnome.Nautilus", "brave": "org.gnome.TextEditor"}
+
+
 def metadata():
     song = playlist[state["index"]]
     if state.get("blank"):
@@ -81,8 +90,11 @@ def metadata():
         "mpris:length": GLib.Variant("x", int(song["length_s"] * 1_000_000)),
     }
     if song.get("art"):
-        art = song["art"] if os.path.isabs(song["art"]) else os.path.join(run_dir, "covers", song["art"])
-        md["mpris:artUrl"] = GLib.Variant("s", "file://" + art)
+        if song["art"].startswith("http"):
+            md["mpris:artUrl"] = GLib.Variant("s", song["art"].replace("{port}", http_port()))
+        else:
+            art = song["art"] if os.path.isabs(song["art"]) else os.path.join(run_dir, "covers", song["art"])
+            md["mpris:artUrl"] = GLib.Variant("s", "file://" + art)
     return md
 
 
@@ -92,7 +104,7 @@ PROPS = {
         "CanRaise": lambda: GLib.Variant("b", False),
         "HasTrackList": lambda: GLib.Variant("b", False),
         "Identity": lambda: GLib.Variant("s", name.capitalize()),
-        "DesktopEntry": lambda: GLib.Variant("s", name),
+        "DesktopEntry": lambda: GLib.Variant("s", DESKTOP_ENTRIES.get(name, name)),
         "SupportedUriSchemes": lambda: GLib.Variant("as", ["file"]),
         "SupportedMimeTypes": lambda: GLib.Variant("as", []),
     },

@@ -40,6 +40,21 @@ playing. On pause it eases flat in about a second and then stops completely.
 cross-fade. The interval timer exists only while the pill is visible, playing,
 has a cover, and `icon-mode` is `alternate`.
 
+**Cover art.** `file://` art is used as is. `http`/`https` art (Spotify and others)
+is downloaded asynchronously with `Gio.File.copy_async` (GVfs does the http) into
+`~/.cache/better-media-controller/covers/`, named by the MD5 of the URL. It is
+written to a `.part` file and renamed only on success, so a partial file is never
+used, and a cached file means no network request. For Spotify (`i.scdn.co/image/`)
+the 640x640 size is tried first, then the original URL. A track change or disable
+cancels a download in flight; a failure is silent. While a cover downloads, or when
+there is none, the player's own app logo is shown (`DesktopEntry`, then the shell's
+heuristic and wmclass lookups, then the `Identity` matched against app names); the
+generic audio icon is only the last resort. To clear the cache:
+
+```bash
+rm -r ~/.cache/better-media-controller
+```
+
 **Popup.** One card per player (at most four, the pill's player first). Each card
 draws its own background in Cairo so rounded corners clip everything: blurred
 cover, cover bleed, or glass. The cover is shrunk to a tiny image and drawn back
@@ -156,7 +171,10 @@ paused with a playing positive control, a lock/unlock), then the preferences sho
 and scans the log. It exits non-zero on any failure. Output goes to
 `tools/headless/runs/<timestamp>/` (gitignored): `report.md` lists the checks and
 shots, and the screenshots are in its `shots/` folder. Covers are copied from
-`~/.cache/mpris-covers/` into the run folder only, never committed.
+`~/.cache/mpris-covers/` into the run folder only, never committed. A tiny local
+http server (`http_server.py`, 127.0.0.1, random port, killed by `stop.sh`) serves
+them to the fake Spotify player, with a 3 s delayed, a 404 and a to-be-cancelled
+URL; the cover cache of a run lives in its own `cache/` folder, never in `~/.cache`.
 
 With `debug-stats` on, the extension prints `[bmc-debug]` lines (timer and signal
 counts at enable and disable, popup and wave start/stop). `logscan.sh` fails on any
