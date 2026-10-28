@@ -5,6 +5,7 @@ import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 
+import {BLUE} from './colors.js';
 import {Tracker, debugLog} from './track.js';
 import {LAYERS, beat, bandOffset} from './wavemath.js';
 
@@ -12,13 +13,22 @@ const FRAME_MS = 33;
 
 const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
 
+// Default to BLUE and pad to three entries by repeating.
+function normColors(colors) {
+    const list = colors?.length ? [...colors] : [...BLUE];
+    while (list.length < 3)
+        list.push(list[list.length - 1]);
+    return list.slice(0, 3).map(rgb);
+}
+
 export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingArea {
     // params: {mode: 'pulse'|'outline', colors: [hex x3], intensity, speed, fade, name, settings}
+    // Any other params are forwarded to St.DrawingArea (actor props).
     constructor({mode = 'pulse', colors, intensity = 100, speed = 100, fade = 1,
-        name = mode, settings = null} = {}) {
-        super();
+        name = mode, settings = null, ...actorProps} = {}) {
+        super(actorProps);
         this._mode = mode;
-        this._rgb = colors.map(rgb);
+        this._rgb = normColors(colors);
         this._intensity = intensity;
         this._speed = speed;
         this._fade = fade;
@@ -51,7 +61,7 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
     }
 
     setColors(colors) {
-        this._rgb = colors.map(rgb);
+        this._rgb = normColors(colors);
         this.queue_repaint();
     }
 
@@ -101,31 +111,34 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
 
     vfunc_repaint() {
         const cr = this.get_context();
-        const [w, h] = this.get_surface_size();
-        if (this._level > 0 && w > 0 && h > 0) {
-            const op = Math.min(1, 0.5 + this._intensity / 200);
-            const k = this._mode === 'pulse' ? beat(this._t) : 1;
-            cr.setLineWidth(1.2);
-            LAYERS.forEach(([a, f, ph, al], i) => {
-                const off = x => bandOffset(x, w, h, f, 0.9 + i * 0.35, ph, a * k,
-                    this._t, this._intensity, this._level);
-                cr.newPath();
-                for (let x = 0; x <= w; x += 2)
-                    cr.lineTo(x, h / 2 - off(x));
-                for (let x = w; x >= 0; x -= 2)
-                    cr.lineTo(x, h / 2 + off(x));
-                cr.closePath();
-                const [r, g, b] = this._rgb[i];
-                if (this._mode === 'pulse') {
-                    cr.setSourceRGBA(r, g, b, al * op);
-                    cr.fill();
-                } else {
-                    cr.setSourceRGBA(r, g, b, 0.75 * this._fade * op);
-                    cr.stroke();
-                }
-            });
+        try {
+            const [w, h] = this.get_surface_size();
+            if (this._level > 0 && w > 0 && h > 0) {
+                const op = Math.min(1, 0.5 + this._intensity / 200);
+                const k = this._mode === 'pulse' ? beat(this._t) : 1;
+                cr.setLineWidth(1.2);
+                LAYERS.forEach(([a, f, ph, al], i) => {
+                    const off = x => bandOffset(x, w, h, f, 0.9 + i * 0.35, ph, a * k,
+                        this._t, this._intensity, this._level);
+                    cr.newPath();
+                    for (let x = 0; x <= w; x += 2)
+                        cr.lineTo(x, h / 2 - off(x));
+                    for (let x = w; x >= 0; x -= 2)
+                        cr.lineTo(x, h / 2 + off(x));
+                    cr.closePath();
+                    const [r, g, b] = this._rgb[i];
+                    if (this._mode === 'pulse') {
+                        cr.setSourceRGBA(r, g, b, al * op);
+                        cr.fill();
+                    } else {
+                        cr.setSourceRGBA(r, g, b, 0.75 * this._fade * op);
+                        cr.stroke();
+                    }
+                });
+            }
+        } finally {
+            cr.$dispose();
         }
-        cr.$dispose();
     }
 
     _onDestroy() {
