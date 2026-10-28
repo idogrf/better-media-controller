@@ -27,6 +27,8 @@ function isRtl(text) {
 const FADE_MS = 800;
 const COLLAPSE_MS = 300;
 const GAP_MS = 1200;
+// Space between the end of the text and the start of its looping copy.
+const LOOP_GAP_PX = 48;
 
 // Keys that affect the pill; everything else (popup-*, known-players, ...) is ignored.
 const KEY_PREFIXES = ['icon-', 'label-', 'element-order', 'hide-when-paused', 'hide-delay',
@@ -100,7 +102,12 @@ export const Pill = GObject.registerClass({
             height: HEIGHT,
         });
         this._label = new St.Label({style_class: 'bmc-label'});
+        // A trailing copy of the label, so the marquee loops without a jump.
+        this._labelCopy = new Clutter.Clone({source: this._label, opacity: 0});
+        this._label.bind_property('translation-x', this._labelCopy, 'translation-x',
+            GObject.BindingFlags.SYNC_CREATE);
         this._labelBox.add_child(this._label);
+        this._labelBox.add_child(this._labelCopy);
         this._tracker.connect(this._label, 'notify::height', () => this._placeLabel());
         this._tracker.connect(this._label, 'notify::width', () => {
             this._placeLabel();
@@ -249,6 +256,8 @@ export const Pill = GObject.registerClass({
                 return false;
             this._label.y = Math.round((HEIGHT - this._label.height) / 2);
             this._label.x = this._rtl ? this._labelBox.width - this._label.width : 0;
+            this._labelCopy.y = this._label.y;
+            this._labelCopy.x = this._label.x + (this._label.width + LOOP_GAP_PX) * (this._rtl ? -1 : 1);
             return false;
         });
     }
@@ -384,8 +393,8 @@ export const Pill = GObject.registerClass({
         const playing = this._shown() && this._label.mapped && this._label.has_allocation() &&
             this._player.status === 'Playing';
         const width = s.get_int('label-width');
-        const overflow = playing && s.get_boolean('label-scroll')
-            ? Math.ceil(this._label.get_preferred_width(-1)[1]) - width : 0;
+        const textWidth = Math.ceil(this._label.get_preferred_width(-1)[1]);
+        const overflow = playing && s.get_boolean('label-scroll') ? textWidth - width : 0;
         const speed = s.get_int('label-scroll-speed');
         const key = overflow > 0 ? `${overflow}|${speed}|${this._rtl}|${this._text}` : '';
         if (key === this._marqueeKey)
@@ -394,20 +403,28 @@ export const Pill = GObject.registerClass({
         this._marqueeGen++;
         this._label.remove_all_transitions();
         this._label.translation_x = 0;
-        if (overflow > 0)
-            this._marqueeRun(this._marqueeGen, this._rtl ? overflow : -overflow, (22 - 1.8 * speed) * 1000);
+        // Opacity, not visible: this can run mid-allocation, where showing an actor warns.
+        this._labelCopy.opacity = overflow > 0 ? 255 : 0;
+        if (overflow > 0) {
+            // One loop moves the copy to where the label started, then jumps back
+            // to 0, which looks identical. Constant speed: 12 to 48 px/s.
+            const period = textWidth + LOOP_GAP_PX;
+            this._marqueeRun(this._marqueeGen, this._rtl ? period : -period,
+                period / (8 + 4 * speed) * 1000, GAP_MS);
+        }
     }
 
-    // distance is negative for LTR text and positive for RTL text.
-    _marqueeRun(gen, distance, duration) {
+    // distance is negative for LTR text and positive for RTL text. Only the
+    // first loop waits before it starts.
+    _marqueeRun(gen, distance, duration, delay) {
         // If the transition completes before ease() returns (unmapped actor,
         // animations off), do not loop: that would recurse forever.
         let sync = true;
         this._label.ease({
             translation_x: distance,
             duration,
-            delay: GAP_MS,
-            mode: Clutter.AnimationMode.EASE_IN_OUT_SINE,
+            delay,
+            mode: Clutter.AnimationMode.LINEAR,
             onComplete: () => {
                 if (sync) {
                     this._label.translation_x = 0;
@@ -417,7 +434,7 @@ export const Pill = GObject.registerClass({
                 if (this._destroyed || gen !== this._marqueeGen)
                     return;
                 this._label.translation_x = 0;
-                this._marqueeRun(gen, distance, duration);
+                this._marqueeRun(gen, distance, duration, 0);
             },
         });
         sync = false;
