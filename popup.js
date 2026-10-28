@@ -4,7 +4,6 @@
 // corners clip everything, with an outline wave behind the content.
 import Cairo from 'gi://cairo';
 import Clutter from 'gi://Clutter';
-import Gdk from 'gi://Gdk';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -17,7 +16,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {BLUE} from './colors.js';
 import {coverPixbuf, waveColors} from './covers.js';
 import {activePlayer, popupOrder, visiblePlayers} from './players.js';
-import {Tracker} from './track.js';
+import {Tracker, debugLog} from './track.js';
 import {WaveArea} from './wave.js';
 
 const CARD_H = 132;
@@ -39,35 +38,44 @@ function roundedRect(cr, x, y, w, h, r) {
     cr.closePath();
 }
 
-// Blur by shrinking then growing back smoothly, with optional saturation and
-// brightness applied on the tiny image. Returns a pixbuf of tw x th.
-function blurredCover(pb, tw, th, radius, sat, bright) {
-    let small = pb;
-    if (radius > 0) {
-        const sw = Math.max(2, Math.round(tw / (radius * 0.8 + 1)));
-        const sh = Math.max(2, Math.round(th / (radius * 0.8 + 1)));
-        small = pb.scale_simple(sw, sh, GdkPixbuf.InterpType.HYPER);
-    }
-    if (sat !== 1 || bright !== 1) {
-        const n = small.get_n_channels();
-        const stride = small.get_rowstride();
-        const src = small.get_pixels();
-        const out = new Uint8Array(src.length);
-        out.set(src);
-        for (let y = 0; y < small.get_height(); y++) {
-            for (let x = 0; x < small.get_width(); x++) {
-                const i = y * stride + x * n;
-                const gray = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-                for (let k = 0; k < 3; k++) {
-                    const v = (gray + (src[i + k] - gray) * sat) * bright;
-                    out[i + k] = Math.max(0, Math.min(255, Math.round(v)));
-                }
-            }
+// Blur by shrinking the cover to a tiny image (applying saturation and brightness
+// on it) and drawing that tiny image back up with Cairo's smooth filter. The tiny
+// image becomes an ARGB32 surface, so no GDK/GTK is involved.
+const MAX_TINY = 128;
+
+function tinyCover(pb, tw, th, radius, sat, bright) {
+    const f = radius > 0 ? radius * 0.8 + 1 : 1;
+    const sw = Math.max(2, Math.min(MAX_TINY, Math.round(tw / f)));
+    const sh = Math.max(2, Math.min(MAX_TINY, Math.round(th / f)));
+    const small = pb.scale_simple(sw, sh, GdkPixbuf.InterpType.HYPER);
+    const n = small.get_n_channels();
+    const stride = small.get_rowstride();
+    const px = small.get_pixels();
+    const surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, sw, sh);
+    const c = new Cairo.Context(surface);
+    for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) {
+            const i = y * stride + x * n;
+            const gray = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+            const ch = k => Math.max(0, Math.min(255, (gray + (px[i + k] - gray) * sat) * bright)) / 255;
+            c.setSourceRGB(ch(0), ch(1), ch(2));
+            c.rectangle(x, y, 1, 1);
+            c.fill();
         }
-        small = GdkPixbuf.Pixbuf.new_from_bytes(new GLib.Bytes(out), GdkPixbuf.Colorspace.RGB,
-            small.get_has_alpha(), 8, small.get_width(), small.get_height(), stride);
     }
-    return small.scale_simple(tw, th, GdkPixbuf.InterpType.BILINEAR);
+    c.$dispose();
+    return {surface, sw, sh, tw, th};
+}
+
+// Paints the tiny image scaled to tw x th with its top-left at (x, y).
+function paintTiny(cr, img, x, y) {
+    cr.save();
+    cr.translate(x, y);
+    cr.scale(img.tw / img.sw, img.th / img.sh);
+    cr.setSourceSurface(img.surface, 0, 0);
+    cr.getSource().setExtend(Cairo.Extend.PAD);
+    cr.paint();
+    cr.restore();
 }
 
 // The card's background layer.
@@ -83,6 +91,9 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
     }
 
     configure(effect, radius, blur) {
+        // Re-blur only when something that affects the image changed.
+        if (effect === this._effect && radius === this._radius && blur === this._blur)
+            return;
         this._effect = effect;
         this._radius = radius;
         this._blur = blur;
@@ -111,13 +122,13 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
         const ph = pb.get_height();
         if (this._effect === 'bleed') {
             const scale = 2.6 * h / ph;
-            this._img = blurredCover(pb, Math.round(pw * scale), Math.round(ph * scale),
+            this._img = tinyCover(pb, Math.round(pw * scale), Math.round(ph * scale),
                 this._blur * 0.35, 1, 1);
         } else {
             const glass = this._effect === 'glass';
             const scale = Math.max(w / pw, h / ph) * (glass ? 1.5 : 1.4);
-            this._img = blurredCover(pb, Math.round(pw * scale), Math.round(ph * scale),
-                this._blur, glass ? 1.8 : 1.2, glass ? 1.1 : 1);
+            this._img = tinyCover(pb, Math.round(pw * scale), Math.round(ph * scale),
+                this._blur, glass ? 1.4 : 1.2, glass ? 1.05 : 1);
         }
     }
 
@@ -149,8 +160,7 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
             if (this._effect === 'bleed') {
                 if (this._img) {
                     cr.pushGroup();
-                    Gdk.cairo_set_source_pixbuf(cr, this._img, 0, (h - this._img.get_height()) / 2);
-                    cr.paint();
+                    paintTiny(cr, this._img, 0, (h - this._img.th) / 2);
                     cr.popGroupToSource();
                     const m = new Cairo.LinearGradient(0, 0, w, 0);
                     m.addColorStopRGBA(0.1, 0, 0, 0, 1);
@@ -165,9 +175,7 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
                 cr.paint();
             } else {
                 if (this._img) {
-                    Gdk.cairo_set_source_pixbuf(cr, this._img, (w - this._img.get_width()) / 2,
-                        (h - this._img.get_height()) / 2);
-                    cr.paint();
+                    paintTiny(cr, this._img, (w - this._img.tw) / 2, (h - this._img.th) / 2);
                 }
                 const s = glass
                     ? new Cairo.LinearGradient(0, 0, 0, h) : new Cairo.LinearGradient(0, 0, w, 0);
@@ -191,7 +199,7 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
             if (glass) {
                 cr.moveTo(this._radius, 1.5);
                 cr.lineTo(w - this._radius, 1.5);
-                cr.setSourceRGBA(1, 1, 1, 0.25);
+                cr.setSourceRGBA(1, 1, 1, 0.4);
                 cr.stroke();
             }
         } finally {
@@ -214,6 +222,7 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
         this._coverToken = 0;
         this._progress = 0;
         this._hasArt = false;
+        this._lastStatus = null;
 
         this._bg = new CardBg();
         this.add_child(this._bg);
@@ -256,10 +265,9 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
         buttons.add_child(this._next);
         meta.add_child(buttons);
 
-        this._track = new St.Widget({style_class: 'bmc-card-track', layout_manager: new Clutter.BinLayout(),
-            x_expand: true});
-        this._fill = new St.Widget({style_class: 'bmc-card-fill', x_align: Clutter.ActorAlign.START,
-            y_expand: true, width: 0});
+        // No layout manager: the fill sits at x = 0 and only its width changes.
+        this._track = new St.Widget({style_class: 'bmc-card-track', x_expand: true});
+        this._fill = new St.Widget({style_class: 'bmc-card-fill', width: 0, height: 3, visible: false});
         this._track.add_child(this._fill);
         meta.add_child(this._track);
 
@@ -321,6 +329,14 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
         if (player.artUrl !== this._artKey)
             this._loadArt();
         this._syncColors();
+        // A status change gets one poll so a paused card shows its frozen position.
+        const changed = player.status !== this._lastStatus;
+        this._lastStatus = player.status;
+        return changed;
+    }
+
+    get playing() {
+        return this._player.status === 'Playing';
     }
 
     _loadArt() {
@@ -383,8 +399,8 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
 
     _setProgress(p) {
         this._progress = p;
-        const w = this._track.width;
-        this._fill.width = Math.round(w * p);
+        this._fill.visible = true;
+        this._fill.width = Math.round(this._track.width * p);
     }
 
     _onCardDestroy() {
@@ -415,6 +431,7 @@ export class PopupStack {
         this._actor = null;
         this._grab = null;
         this._tracker = null;
+        this._pollId = null;
         this._cards = [];
         this._source = null;
     }
@@ -457,13 +474,32 @@ export class PopupStack {
         const click = new Clutter.ClickGesture();
         this._tracker.connect(click, 'recognize', () => this._onClick(click));
         this._actor.add_action(click);
-        this._tracker.addTimeout(1000, () => {
+        // First poll after the cards have been allocated, so the track has a width.
+        this._tracker.addTimeout(150, () => {
             for (const c of this._cards)
                 c.poll();
-            return true;
+            return false;
         });
-        for (const c of this._cards)
-            c.poll();
+        this._syncPoll();
+    }
+
+    // The 1 s poll exists only while an open card is playing.
+    _syncPoll() {
+        const want = this._open && this._cards.some(c => c.playing);
+        if (want && this._pollId === null) {
+            debugLog(this._settings, 'popup poll start');
+            this._pollId = this._tracker.addTimeout(1000, () => {
+                for (const c of this._cards) {
+                    if (c.playing)
+                        c.poll();
+                }
+                return true;
+            });
+        } else if (!want && this._pollId !== null) {
+            this._tracker.remove(this._pollId);
+            this._pollId = null;
+            debugLog(this._settings, 'popup poll stop');
+        }
     }
 
     close() {
@@ -472,6 +508,7 @@ export class PopupStack {
         this._open = false;
         this._tracker.destroy();
         this._tracker = null;
+        this._pollId = null;
         if (this._grab) {
             Main.popModal(this._grab);
             this._grab = null;
@@ -526,17 +563,24 @@ export class PopupStack {
         list.forEach((p, i) => {
             let card = this._cards.find(c => c.id === p.id);
             if (card) {
-                card.update(p);
+                if (card.update(p) && this._open)
+                    card.poll();
             } else {
                 card = new PlayerCard(this._settings, p, () => this._open);
                 this._cards.push(card);
                 this._actor.add_child(card);
+                const added = card;
+                this._tracker.addTimeout(150, () => {
+                    added.poll();
+                    return false;
+                });
             }
             this._actor.set_child_at_index(card, i);
         });
         this._cards.sort((a, b) => list.findIndex(p => p.id === a.id) - list.findIndex(p => p.id === b.id));
         if (this._open && this._source)
             this._position();
+        this._syncPoll();
     }
 
     // Centered under the pill, clamped to its monitor, GAP below it.

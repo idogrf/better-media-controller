@@ -3,7 +3,7 @@
 Usage: python3 fake_mpris.py <name> <playlist.json>   (inside env.sh)
 
 Owns org.mpris.MediaPlayer2.<name>. Control by appending lines to
-$RUN_DIR/mpris-<name>.cmd: play, pause, next, prev, quit, song <index>.
+$RUN_DIR/mpris-<name>.cmd: play, pause, next, prev, quit, song <index>, seek <seconds>.
 Playlist entries are {title, artist, length_s, art}; art is a file name under
 $RUN_DIR/covers (or an absolute path) or null. Writes its pid to
 $RUN_DIR/mpris-<name>.pid so stop.sh can kill it.
@@ -154,6 +154,11 @@ def command(cmd):
         song(state["index"] + 1)
     elif op == "prev":
         song(state["index"] - 1)
+    elif op == "seek" and len(parts) > 1:
+        state["base"] = float(parts[1])
+        state["since"] = time.monotonic()
+        bus.emit_signal(None, OBJ, "org.mpris.MediaPlayer2.Player", "Seeked",
+                        GLib.Variant("(x)", (int(state["base"] * 1_000_000),)))
     elif op == "song" and len(parts) > 1:
         song(int(parts[1]))
     elif op == "quit":
