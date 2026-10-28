@@ -36,6 +36,11 @@ faded at both ends, pumped by a simulated beat. The pill's wave is filled; the
 popup's is an outline. A wave runs only while it is on screen and its player is
 playing. On pause it eases flat in about a second and then stops completely.
 
+**Label.** A label wider than its box scrolls at a constant speed and loops: a
+copy of the text follows the original after a small gap, so it never stops or
+jumps back. It scrolls only while playing and returns to the start
+while paused.
+
 **Icon.** It alternates between the app icon and the song cover with a 0.8 s
 cross-fade. The interval timer exists only while the pill is visible, playing,
 has a cover, and `icon-mode` is `alternate`.
@@ -84,7 +89,7 @@ changes apply live.
 | Label width (px, 60-320) | `label-width` | `140` |
 | Maximum label length (characters, 10-100) | `label-max-length` | `40` |
 | Scroll long labels | `label-scroll` | `true` |
-| Scroll speed (1-10) | `label-scroll-speed` | `5` |
+| Scroll speed (1-10, from 12 to 48 px/s) | `label-scroll-speed` | `5` |
 | Label font family; empty uses the system font | `label-font` | `''` |
 | Label font size (px, 9-20) | `label-font-size` | `13.5` |
 | Bold label | `label-bold` | `true` |
@@ -110,11 +115,12 @@ changes apply live.
 
 ## Install
 
-Not on extensions.gnome.org, and nothing here is installed yet. When you are ready:
+Not on extensions.gnome.org. Requires GNOME Shell 50. If Advanced Media
+Controller is installed, disable it first. Then:
 
 ```bash
-gnome-extensions disable advanced-media-controller@sanjai.com   # disable AMC first
-cd ~/Private/Repos/gnome_extensions/better-media-controller
+git clone https://github.com/idogrf/better-media-controller.git
+cd better-media-controller
 glib-compile-schemas schemas/
 ln -s "$PWD" ~/.local/share/gnome-shell/extensions/better-media-controller@idogr
 ```
