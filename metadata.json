@@ -1,0 +1,8 @@
+{
+  "uuid": "better-media-controller@idogr",
+  "name": "Better Media Controller",
+  "description": "A media controller for the top panel: a compact pill with the current track, play controls and an animated wave, and a popup with covers, progress and per-player cards.",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.better-media-controller",
+  "version": 1
+}

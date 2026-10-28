@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.better-media-controller"
+          path="/org/gnome/shell/extensions/better-media-controller/">
+    <key name="panel-side" type="s">
+      <default>'center'</default>
+      <choices><choice value="left"/><choice value="center"/><choice value="right"/></choices>
+      <summary>Panel section for the pill</summary>
+    </key>
+    <key name="panel-index" type="i">
+      <default>0</default>
+      <summary>Position within the panel section</summary>
+    </key>
+    <key name="element-order" type="s">
+      <default>'icon-label-controls'</default>
+      <choices><choice value="icon-label-controls"/><choice value="label-icon-controls"/><choice value="controls-icon-label"/></choices>
+      <summary>Order of icon, label and controls in the pill</summary>
+    </key>
+    <key name="icon-mode" type="s">
+      <default>'alternate'</default>
+      <choices><choice value="app"/><choice value="cover"/><choice value="alternate"/></choices>
+      <summary>What the pill icon shows</summary>
+    </key>
+    <key name="icon-interval" type="i">
+      <default>10</default>
+      <range min="2" max="120"/>
+      <summary>Seconds between icon switches in alternate mode</summary>
+    </key>
+    <key name="icon-size" type="i">
+      <default>18</default>
+      <range min="12" max="24"/>
+      <summary>Pill icon size in pixels</summary>
+    </key>
+    <key name="label-show" type="s">
+      <default>'both'</default>
+      <choices><choice value="both"/><choice value="title"/><choice value="artist"/></choices>
+      <summary>Which track fields the label shows</summary>
+    </key>
+    <key name="label-separator" type="s">
+      <default>' • '</default>
+      <summary>Text between title and artist</summary>
+    </key>
+    <key name="label-width" type="i">
+      <default>140</default>
+      <range min="60" max="320"/>
+      <summary>Label width in pixels</summary>
+    </key>
+    <key name="label-max-length" type="i">
+      <default>40</default>
+      <range min="10" max="100"/>
+      <summary>Maximum label length in characters</summary>
+    </key>
+    <key name="label-scroll" type="b">
+      <default>true</default>
+      <summary>Scroll labels that are too long</summary>
+    </key>
+    <key name="label-scroll-speed" type="i">
+      <default>5</default>
+      <range min="1" max="10"/>
+      <summary>Label scroll speed</summary>
+    </key>
+    <key name="label-font" type="s">
+      <default>''</default>
+      <summary>Label font family, empty for the system font</summary>
+    </key>
+    <key name="label-font-size" type="d">
+      <default>13.5</default>
+      <range min="9" max="20"/>
+      <summary>Label font size in points</summary>
+    </key>
+    <key name="label-bold" type="b">
+      <default>true</default>
+      <summary>Show the label in bold</summary>
+    </key>
+    <key name="label-color-enabled" type="b">
+      <default>false</default>
+      <summary>Use a custom label color</summary>
+    </key>
+    <key name="label-color" type="s">
+      <default>'#8fd0ff'</default>
+      <summary>Custom label color</summary>
+    </key>
+    <key name="hide-when-paused" type="b">
+      <default>false</default>
+      <summary>Hide the pill after playback has paused</summary>
+    </key>
+    <key name="hide-delay" type="i">
+      <default>30</default>
+      <range min="0" max="600"/>
+      <summary>Seconds to wait before hiding a paused pill</summary>
+    </key>
+    <key name="popup-effect" type="s">
+      <default>'blur'</default>
+      <choices><choice value="blur"/><choice value="bleed"/><choice value="glass"/></choices>
+      <summary>Popup background effect</summary>
+    </key>
+    <key name="popup-blur" type="i">
+      <default>20</default>
+      <range min="0" max="60"/>
+      <summary>Popup blur strength</summary>
+    </key>
+    <key name="popup-radius" type="i">
+      <default>22</default>
+      <range min="0" max="66"/>
+      <summary>Popup corner radius in pixels</summary>
+    </key>
+    <key name="popup-width" type="i">
+      <default>440</default>
+      <range min="360" max="560"/>
+      <summary>Popup width in pixels</summary>
+    </key>
+    <key name="wave-pill" type="b">
+      <default>true</default>
+      <summary>Show the wave animation in the pill</summary>
+    </key>
+    <key name="wave-popup" type="b">
+      <default>true</default>
+      <summary>Show the wave animation in the popup</summary>
+    </key>
+    <key name="wave-color-mode" type="s">
+      <default>'blue'</default>
+      <choices><choice value="blue"/><choice value="cover"/><choice value="custom"/></choices>
+      <summary>Where the wave color comes from</summary>
+    </key>
+    <key name="wave-custom-color" type="s">
+      <default>'#ff7ab6'</default>
+      <summary>Custom wave color</summary>
+    </key>
+    <key name="wave-intensity" type="i">
+      <default>100</default>
+      <range min="20" max="150"/>
+      <summary>Wave intensity in percent</summary>
+    </key>
+    <key name="wave-speed" type="i">
+      <default>100</default>
+      <range min="25" max="200"/>
+      <summary>Wave speed in percent</summary>
+    </key>
+    <key name="hide-gnome-player" type="b">
+      <default>true</default>
+      <summary>Hide GNOME's built-in media player</summary>
+    </key>
+    <key name="player-filter-mode" type="s">
+      <default>'all'</default>
+      <choices><choice value="all"/><choice value="only"/><choice value="except"/></choices>
+      <summary>Which players are shown</summary>
+    </key>
+    <key name="player-filter-list" type="as">
+      <default>[]</default>
+      <summary>Players the filter applies to</summary>
+    </key>
+    <key name="known-players" type="as">
+      <default>[]</default>
+      <summary>Players seen so far</summary>
+    </key>
+    <key name="debug-stats" type="b">
+      <default>false</default>
+      <summary>Log debug statistics (hidden, not in prefs)</summary>
+    </key>
+  </schema>
+</schemalist>

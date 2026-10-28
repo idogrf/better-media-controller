@@ -1,0 +1,10 @@
+# build output — regenerate with: glib-compile-schemas schemas/
+schemas/gschemas.compiled
+# headless test runs
+tools/headless/runs/
+# release zip — build with: ./pack.sh
+dist/
+# mock cover images (never committed)
+docs/mock/covers/
+# controller scratch
+.superpowers/
