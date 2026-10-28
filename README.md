@@ -5,6 +5,13 @@ a rounded pill with the current track, previous / play-pause / next buttons and 
 soft animated wave behind them. Clicking the pill opens a stack of slim cards, one
 per player, with the cover, title, artist, controls and a progress bar.
 
+![The pill: scrolling track name, wave, and the icon switching between the app logo and the cover](docs/images/pill.webp)
+
+Clicking the pill opens one card per player. Pressing play on another card makes
+that player the pill's, and its card moves to the top:
+
+![The popup with three players; starting a second one moves the pill to it](docs/images/popup.webp)
+
 ## Why this exists
 
 It replaces Advanced Media Controller (AMC), whose popup is large and which
@@ -43,6 +50,11 @@ label. Like the wave, they follow a made-up beat, since MPRIS carries no audio
 levels; they use the same color, intensity and speed settings and the same
 start/stop rules.
 
+From top to bottom: wave, bars, bars with peaks, stacked blocks, and the wave in
+the cover's color (`wave-color-mode` `cover`):
+
+![The pill's five looks](docs/images/pill-effects.png)
+
 **Label.** A label wider than its box scrolls at a constant speed and loops: a
 copy of the text follows the original after a small gap, so it never stops or
 jumps back. It scrolls only while playing and returns to the start
@@ -74,6 +86,11 @@ up smoothly, which stands in for a blur. Progress is read asynchronously once a
 second, only while the popup is open and a card is playing. It closes on a click
 outside, Escape, or another click on the pill, and always releases its modal grab
 (also when the extension is disabled while it is open).
+
+The three card backgrounds (`popup-effect`), from top to bottom: blur, bleed,
+glass.
+
+<img src="docs/images/popup-backgrounds.png" width="451" alt="One card with each of the three backgrounds">
 
 **GNOME's own player.** The built-in media card in the notification list is hidden
 while the extension is enabled (`hide-gnome-player`) and restored on disable.
