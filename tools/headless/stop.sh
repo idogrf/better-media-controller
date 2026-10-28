@@ -15,7 +15,15 @@ rm -f "$RUN_DIR/shell.pid" "$RUN_DIR/driver.pid"
 # Remove this run's private runtime dir (never the real one).
 if [ -f "$RUN_DIR/runtime-dir" ]; then
     RT="$(cat "$RUN_DIR/runtime-dir")"
-    case "$RT" in /tmp/bmc-rt-*) rm -rf "$RT" ;; esac
+    # Only ever remove a plain directory directly under /tmp named bmc-rt-*.
+    case "$RT" in
+        *..*) ;;
+        /tmp/bmc-rt-*)
+            if [ "$(dirname "$RT")" = /tmp ] && [ -d "$RT" ] && [ ! -L "$RT" ]; then
+                rm -rf "$RT"
+            fi
+            ;;
+    esac
 fi
 
 # Compare before and after only, so the guard still works once the extension
