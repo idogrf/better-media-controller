@@ -66,7 +66,7 @@
     <key name="label-font-size" type="d">
       <default>13.5</default>
       <range min="9" max="20"/>
-      <summary>Label font size in points</summary>
+      <summary>Label font size in pixels</summary>
     </key>
     <key name="label-bold" type="b">
       <default>true</default>
