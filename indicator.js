@@ -18,6 +18,13 @@ import {Tracker} from './track.js';
 import {WaveArea} from './wave.js';
 
 const HEIGHT = 26;
+const RTL_RANGES = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+
+// True when the first letter of the text is from a right-to-left script.
+function isRtl(text) {
+    const m = text.match(/\p{L}/u);
+    return m !== null && RTL_RANGES.test(m[0]);
+}
 const FADE_MS = 800;
 const COLLAPSE_MS = 300;
 const GAP_MS = 1200;
@@ -40,6 +47,7 @@ export const Pill = GObject.registerClass({
         this._player = null;
         this._collapsed = false;
         this._hideTimer = null;
+        this._hideDelay = 0;
         this._iconTimer = null;
         this._iconTimerKey = '';
         this._altCover = false;
@@ -49,7 +57,9 @@ export const Pill = GObject.registerClass({
         this._colorToken = 0;
         this._iconKey = '';
         this._text = '';
+        this._rtl = false;
         this._hasCover = false;
+        this._placeIdle = null;
 
         this._pill = new St.Widget({
             style_class: 'bmc-pill',
@@ -75,7 +85,9 @@ export const Pill = GObject.registerClass({
             layout_manager: new Clutter.BinLayout(),
             y_align: Clutter.ActorAlign.CENTER,
         });
-        this._appIcon = new St.Icon({x_expand: true, y_expand: true});
+        this._appIcon = new St.Icon({
+            x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER,
+        });
         this._cover = new St.Bin({x_expand: true, y_expand: true, opacity: 0});
         this._iconBox.add_child(this._appIcon);
         this._iconBox.add_child(this._cover);
@@ -87,8 +99,10 @@ export const Pill = GObject.registerClass({
         });
         this._label = new St.Label({style_class: 'bmc-label'});
         this._labelBox.add_child(this._label);
-        this._tracker.connect(this._label, 'notify::height', () => {
-            this._label.y = Math.round((HEIGHT - this._label.height) / 2);
+        this._tracker.connect(this._label, 'notify::height', () => this._placeLabel());
+        this._tracker.connect(this._label, 'notify::width', () => {
+            this._placeLabel();
+            this._syncMarquee();
         });
 
         this._controls = new St.BoxLayout({
@@ -114,6 +128,7 @@ export const Pill = GObject.registerClass({
         });
         // The label maps after the pill, so key off the label itself.
         this._tracker.connect(this._label, 'notify::mapped', () => {
+            this._placeLabel();
             this._syncMarquee();
         });
         this.connect('destroy', () => this._onPillDestroy());
@@ -149,7 +164,7 @@ export const Pill = GObject.registerClass({
 
         if (!this._player) {
             this._cancelHide();
-            this._collapsed = false;
+            this._resetCollapse();
             this.container.hide();
             this._wave.setPlaying(false);
             this._syncMarquee();
@@ -174,8 +189,13 @@ export const Pill = GObject.registerClass({
         const s = this._settings;
         const size = s.get_int('icon-size');
         this._iconBox.set_size(size, size);
-        this._appIcon.icon_size = size;
+        this._iconBox.style = `border-radius: ${Math.ceil(size / 2)}px; ` +
+            'background-color: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.13);';
+        this._appIcon.icon_size = Math.round(size * 0.7);
         this._labelBox.width = s.get_int('label-width');
+        // Without scrolling the label is clamped to the box so it ellipsizes.
+        this._label.set_width(s.get_boolean('label-scroll') ? -1 : s.get_int('label-width'));
+        this._placeLabel();
 
         const order = s.get_string('element-order');
         const parts = {
@@ -205,6 +225,22 @@ export const Pill = GObject.registerClass({
             ? Pango.EllipsizeMode.NONE : Pango.EllipsizeMode.END;
     }
 
+    // Vertically centered; RTL text is right-aligned so its start stays visible.
+    // Positions are set from an idle, not from the allocation callbacks that
+    // trigger this: moving an actor mid-allocation makes Clutter warn.
+    _placeLabel() {
+        if (this._placeIdle !== null)
+            return;
+        this._placeIdle = this._tracker.addIdle(() => {
+            this._placeIdle = null;
+            if (this._destroyed || !this._label.has_allocation())
+                return false;
+            this._label.y = Math.round((HEIGHT - this._label.height) / 2);
+            this._label.x = this._rtl ? this._labelBox.width - this._label.width : 0;
+            return false;
+        });
+    }
+
     _applyText() {
         const p = this._player;
         const s = this._settings;
@@ -212,7 +248,9 @@ export const Pill = GObject.registerClass({
             s.get_string('label-separator'), s.get_int('label-max-length'));
         if (text !== this._text) {
             this._text = text;
+            this._rtl = isRtl(text);
             this._label.text = text;
+            this._placeLabel();
         }
         this._play.child.icon_name = p.status === 'Playing'
             ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
@@ -248,7 +286,7 @@ export const Pill = GObject.registerClass({
             this._hasCover = this._coverAvailable();
             this._cover.style = this._hasCover
                 ? `background-image: url("${p.artUrl}"); background-size: ${size}px ${size}px; ` +
-                  `border-radius: ${Math.round(size / 4)}px;`
+                  `border-radius: ${Math.ceil(size / 2)}px;`
                 : '';
         }
         this._fadeIcon();
@@ -274,7 +312,8 @@ export const Pill = GObject.registerClass({
     // changing the interval replaces it rather than adding another.
     _syncIconTimer() {
         const s = this._settings;
-        const want = this._shown() && this._hasCover && s.get_string('icon-mode') === 'alternate'
+        const want = this._shown() && this._player.status === 'Playing' && this._hasCover &&
+            s.get_string('icon-mode') === 'alternate'
             ? s.get_int('icon-interval') : 0;
         const key = String(want);
         if (key === this._iconTimerKey)
@@ -319,12 +358,13 @@ export const Pill = GObject.registerClass({
     _syncMarquee() {
         const s = this._settings;
         // Measuring needs the widget in the stage; notify::mapped refreshes again.
-        const playing = this._shown() && this._label.mapped && this._player.status === 'Playing';
+        const playing = this._shown() && this._label.mapped && this._label.has_allocation() &&
+            this._player.status === 'Playing';
         const width = s.get_int('label-width');
         const overflow = playing && s.get_boolean('label-scroll')
             ? Math.ceil(this._label.get_preferred_width(-1)[1]) - width : 0;
         const speed = s.get_int('label-scroll-speed');
-        const key = overflow > 0 ? `${overflow}|${speed}|${this._text}` : '';
+        const key = overflow > 0 ? `${overflow}|${speed}|${this._rtl}|${this._text}` : '';
         if (key === this._marqueeKey)
             return;
         this._marqueeKey = key;
@@ -332,15 +372,16 @@ export const Pill = GObject.registerClass({
         this._label.remove_all_transitions();
         this._label.translation_x = 0;
         if (overflow > 0)
-            this._marqueeRun(this._marqueeGen, overflow, (22 - 1.8 * speed) * 1000);
+            this._marqueeRun(this._marqueeGen, this._rtl ? overflow : -overflow, (22 - 1.8 * speed) * 1000);
     }
 
-    _marqueeRun(gen, overflow, duration) {
+    // distance is negative for LTR text and positive for RTL text.
+    _marqueeRun(gen, distance, duration) {
         // If the transition completes before ease() returns (unmapped actor,
         // animations off), do not loop: that would recurse forever.
         let sync = true;
         this._label.ease({
-            translation_x: -overflow,
+            translation_x: distance,
             duration,
             delay: GAP_MS,
             mode: Clutter.AnimationMode.EASE_IN_OUT_SINE,
@@ -353,7 +394,7 @@ export const Pill = GObject.registerClass({
                 if (this._destroyed || gen !== this._marqueeGen)
                     return;
                 this._label.translation_x = 0;
-                this._marqueeRun(gen, overflow, duration);
+                this._marqueeRun(gen, distance, duration);
             },
         });
         sync = false;
@@ -376,9 +417,13 @@ export const Pill = GObject.registerClass({
                 this._expand();
             return;
         }
-        if (this._collapsed || this._hideTimer !== null)
+        const delay = s.get_int('hide-delay');
+        if (this._collapsed || (this._hideTimer !== null && delay === this._hideDelay))
             return;
-        this._hideTimer = this._tracker.addTimeout(s.get_int('hide-delay') * 1000, () => {
+        // A changed delay replaces the pending timer instead of keeping the old one.
+        this._cancelHide();
+        this._hideDelay = delay;
+        this._hideTimer = this._tracker.addTimeout(delay * 1000, () => {
             this._hideTimer = null;
             this._collapse();
             return false;
@@ -400,6 +445,14 @@ export const Pill = GObject.registerClass({
         });
         this._syncMarquee();
         this._syncIconTimer();
+    }
+
+    // Undo any collapse (also one still easing) so the pill is never left 0-wide.
+    _resetCollapse() {
+        this._collapsed = false;
+        this.remove_all_transitions();
+        this.set_width(-1);
+        this.opacity = 255;
     }
 
     _expand() {

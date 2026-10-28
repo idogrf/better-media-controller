@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Cover-art colors: dominant colors of a file:// cover, cached by URL.
 // Anything that is not a readable file:// image resolves to BLUE; never throws or logs.
+// Failed loads are not cached, so a later call for the same URL can succeed.
 import Gio from 'gi://Gio';
 import GdkPixbuf from 'gi://GdkPixbuf';
 
@@ -10,13 +11,10 @@ const SIZE = 80;
 const CACHE_MAX = 32;
 const cache = new Map();
 
+// Resolves to the colors, or null when the image could not be read.
 function load(artUrl) {
     return new Promise(resolve => {
         try {
-            if (!artUrl?.startsWith('file://')) {
-                resolve(BLUE);
-                return;
-            }
             const file = Gio.File.new_for_uri(artUrl);
             file.read_async(0, null, (f, res) => {
                 try {
@@ -28,15 +26,15 @@ function load(artUrl) {
                                 stream.close_async(0, null, null);
                                 resolve(dominantColors(rgbPixels(pb)));
                             } catch (_e) {
-                                resolve(BLUE);
+                                resolve(null);
                             }
                         });
                 } catch (_e) {
-                    resolve(BLUE);
+                    resolve(null);
                 }
             });
         } catch (_e) {
-            resolve(BLUE);
+            resolve(null);
         }
     });
 }
@@ -62,13 +60,22 @@ function rgbPixels(pb) {
 }
 
 export function coverColors(artUrl) {
-    const key = artUrl ?? '';
-    if (!cache.has(key)) {
+    if (!artUrl?.startsWith('file://'))
+        return Promise.resolve(BLUE);
+    if (!cache.has(artUrl)) {
         if (cache.size >= CACHE_MAX)
             cache.delete(cache.keys().next().value);
-        cache.set(key, load(key));
+        const p = load(artUrl).then(colors => {
+            if (colors === null) {
+                if (cache.get(artUrl) === p)
+                    cache.delete(artUrl);
+                return BLUE;
+            }
+            return colors;
+        });
+        cache.set(artUrl, p);
     }
-    return cache.get(key);
+    return cache.get(artUrl);
 }
 
 export function waveColors(settings, artUrl) {

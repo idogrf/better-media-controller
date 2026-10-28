@@ -114,6 +114,16 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
         try {
             const [w, h] = this.get_surface_size();
             if (this._level > 0 && w > 0 && h > 0) {
+                // Nothing may draw outside the pill's rounded ends.
+                const r = Math.min(h, w) / 2;
+                cr.newPath();
+                cr.moveTo(r, 0);
+                cr.lineTo(w - r, 0);
+                cr.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2);
+                cr.lineTo(r, h);
+                cr.arc(r, r, r, Math.PI / 2, 3 * Math.PI / 2);
+                cr.closePath();
+                cr.clip();
                 const op = Math.min(1, 0.5 + this._intensity / 200);
                 const k = this._mode === 'pulse' ? beat(this._t) : 1;
                 cr.setLineWidth(1.2);
