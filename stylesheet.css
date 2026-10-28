@@ -43,3 +43,64 @@
 .bmc-btn:focus {
     background-color: rgba(255, 255, 255, 0.14);
 }
+
+/* Popup stack */
+.bmc-stack {
+    spacing: 8px;
+}
+
+.bmc-card-row {
+    spacing: 18px;
+    padding: 0 22px 0 18px;
+}
+
+.bmc-card-title {
+    font-size: 15.5px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.bmc-card-artist {
+    font-size: 13px;
+    font-weight: 500;
+    color: #c3cfdb;
+    min-height: 17px;
+}
+
+.bmc-card-buttons {
+    spacing: 18px;
+    margin: 8px 0 9px;
+}
+
+.bmc-cb {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 16px;
+    border: 1.5px solid rgba(255, 255, 255, 0.4);
+    color: #ffffff;
+}
+
+.bmc-cb-main {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    border-color: #ffffff;
+}
+
+.bmc-cb:hover,
+.bmc-cb:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.bmc-card-track {
+    height: 3px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.bmc-card-fill {
+    border-radius: 3px;
+    background-color: #8fd0ff;
+    box-shadow: 0 0 8px #8fd0ff;
+}

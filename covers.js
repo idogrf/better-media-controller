@@ -11,20 +11,24 @@ const SIZE = 80;
 const CACHE_MAX = 32;
 const cache = new Map();
 
-// Resolves to the colors, or null when the image could not be read.
-function load(artUrl) {
+// Resolves to a Pixbuf scaled to size x size (aspect kept when `keep`), or null.
+function loadPixbuf(artUrl, size, keep) {
     return new Promise(resolve => {
         try {
+            if (!artUrl?.startsWith('file://')) {
+                resolve(null);
+                return;
+            }
             const file = Gio.File.new_for_uri(artUrl);
             file.read_async(0, null, (f, res) => {
                 try {
                     const stream = f.read_finish(res);
-                    GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream, SIZE, SIZE, false, null,
+                    GdkPixbuf.Pixbuf.new_from_stream_at_scale_async(stream, size, size, keep, null,
                         (_o, r) => {
                             try {
                                 const pb = GdkPixbuf.Pixbuf.new_from_stream_finish(r);
                                 stream.close_async(0, null, null);
-                                resolve(dominantColors(rgbPixels(pb)));
+                                resolve(pb);
                             } catch (_e) {
                                 resolve(null);
                             }
@@ -37,6 +41,16 @@ function load(artUrl) {
             resolve(null);
         }
     });
+}
+
+// Resolves to the colors, or null when the image could not be read.
+function load(artUrl) {
+    return loadPixbuf(artUrl, SIZE, false).then(pb => (pb ? dominantColors(rgbPixels(pb)) : null));
+}
+
+// A 256 px cover for the popup backgrounds; null when unreadable. Not cached.
+export function coverPixbuf(artUrl) {
+    return loadPixbuf(artUrl, 256, true);
 }
 
 // Pixbuf (any channel count, rowstride padding) to a packed RGB Uint8Array.

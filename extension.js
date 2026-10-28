@@ -5,6 +5,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {GnomePlayerHider} from './gnomeplayer.js';
 import {Pill} from './indicator.js';
 import {MprisWatcher} from './mpris.js';
+import {PopupStack} from './popup.js';
 import {Tracker, debugLog, totals} from './track.js';
 
 export default class BetterMediaController extends Extension {
@@ -25,6 +26,7 @@ export default class BetterMediaController extends Extension {
             this._tracker.connect(this._settings, `changed::${key}`, () => this._addPill());
         this._tracker.connect(this._settings, 'changed::hide-gnome-player',
             () => this._hider.setHidden(this._settings.get_boolean('hide-gnome-player')));
+        this._popup = new PopupStack(this._settings, this._watcher);
         this._addPill();
 
         const {sources, signals} = totals();
@@ -32,6 +34,8 @@ export default class BetterMediaController extends Extension {
     }
 
     disable() {
+        this._popup.destroy();
+        this._popup = null;
         this._pill?.destroy();
         this._pill = null;
         this._hider.destroy();
@@ -47,9 +51,16 @@ export default class BetterMediaController extends Extension {
 
     // Destroys any existing pill first so a side/index change never leaks one.
     _addPill() {
+        this._popup.close();
         this._pill?.destroy();
         const pill = new Pill(this, this._settings, this._watcher);
-        pill.connect('toggle-popup', () => debugLog(this._settings, 'toggle-popup'));
+        pill.connect('toggle-popup', () => {
+            debugLog(this._settings, 'toggle-popup');
+            if (this._popup.isOpen)
+                this._popup.close();
+            else
+                this._popup.open(pill);
+        });
         this._pill = pill;
         Main.panel.addToStatusArea(this.uuid, pill, this._settings.get_int('panel-index'),
             this._settings.get_string('panel-side'));

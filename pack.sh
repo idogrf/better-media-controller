@@ -13,6 +13,7 @@ gnome-extensions pack --force --out-dir=dist \
     --extra-source=wave.js \
     --extra-source=covers.js \
     --extra-source=indicator.js \
+    --extra-source=popup.js \
     --extra-source=gnomeplayer.js \
     --extra-source=LICENSE \
     .
