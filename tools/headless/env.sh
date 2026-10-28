@@ -20,6 +20,12 @@ fi
 export RUN_DIR
 export XDG_CONFIG_HOME="$RUN_DIR/config"
 export XDG_DATA_HOME="$RUN_DIR/data"
+# A private runtime dir (short path under /tmp: socket paths are limited to 108
+# characters) so nothing of the headless shell lands in the real /run/user/UID.
+if [ -f "$RUN_DIR/runtime-dir" ]; then
+    XDG_RUNTIME_DIR="$(cat "$RUN_DIR/runtime-dir")"
+    export XDG_RUNTIME_DIR
+fi
 export XDG_CACHE_HOME="$RUN_DIR/cache"
 export XDG_STATE_HOME="$RUN_DIR/state"
 if [ -f "$RUN_DIR/bus" ]; then

@@ -8,6 +8,13 @@ case "$DBUS_SESSION_BUS_ADDRESS$XDG_CONFIG_HOME" in
     */tools/headless/runs/*) echo "real-state.sh: env.sh is sourced in this shell; use a clean shell" >&2; exit 2 ;;
 esac
 gsettings get org.gnome.shell enabled-extensions
+# The real shell's crash-guard file: its presence and mtime must not change across a run.
+GUARD="/run/user/$(id -u)/gnome-shell-disable-extensions"
+if [ -e "$GUARD" ]; then
+    echo "disable-extensions guard: present $(stat -c %Y "$GUARD")"
+else
+    echo "disable-extensions guard: absent"
+fi
 EXT="$HOME/.local/share/gnome-shell/extensions/better-media-controller@idogr"
 if [ -L "$EXT" ]; then
     echo "symlink -> $(readlink "$EXT")"

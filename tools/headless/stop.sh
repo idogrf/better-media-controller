@@ -12,6 +12,12 @@ done
 [ -f "$RUN_DIR/shell.pid" ] && kill -- -"$(cat "$RUN_DIR/shell.pid")" 2>/dev/null
 rm -f "$RUN_DIR/shell.pid" "$RUN_DIR/driver.pid"
 
+# Remove this run's private runtime dir (never the real one).
+if [ -f "$RUN_DIR/runtime-dir" ]; then
+    RT="$(cat "$RUN_DIR/runtime-dir")"
+    case "$RT" in /tmp/bmc-rt-*) rm -rf "$RT" ;; esac
+fi
+
 # Compare before and after only, so the guard still works once the extension
 # is installed for real.
 bash "$HEADLESS_DIR/real-state.sh" > "$RUN_DIR/real-state.after" || { echo "real-state check could not run (is env.sh sourced in this shell?)" >&2; exit 1; }

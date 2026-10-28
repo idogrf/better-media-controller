@@ -135,6 +135,11 @@ export const Pill = GObject.registerClass({
         this._refresh();
     }
 
+    // Re-applies visibility; the panel shows the container when it adds the pill.
+    refresh() {
+        this._refresh();
+    }
+
     get player() {
         return this._player;
     }

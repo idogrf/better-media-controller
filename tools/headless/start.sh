@@ -15,6 +15,16 @@ RUN_DIR="$HEADLESS_DIR/runs/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$RUN_DIR"/{config,data/gnome-shell/extensions,cache,state,shots}
 ln -sfn "$RUN_DIR" "$CURRENT"
 
+# Private runtime dir for the headless shell (mode 0700). Only the PipeWire sockets
+# are linked in from the real one, which screenshots need; nothing else is shared.
+REAL_RUNTIME="/run/user/$(id -u)"
+RT="$(mktemp -d /tmp/bmc-rt-XXXXXX)"
+echo "$RT" > "$RUN_DIR/runtime-dir"
+ln -s "$RT" "$RUN_DIR/runtime"
+for sock in pipewire-0 pipewire-0-manager; do
+    [ -e "$REAL_RUNTIME/$sock" ] && ln -s "$REAL_RUNTIME/$sock" "$RT/$sock"
+done
+
 glib-compile-schemas "$REPO/schemas"
 ln -s "$REPO" "$RUN_DIR/data/gnome-shell/extensions/better-media-controller@idogr"
 

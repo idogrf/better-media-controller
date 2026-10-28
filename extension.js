@@ -64,5 +64,7 @@ export default class BetterMediaController extends Extension {
         this._pill = pill;
         Main.panel.addToStatusArea(this.uuid, pill, this._settings.get_int('panel-index'),
             this._settings.get_string('panel-side'));
+        // addToStatusArea shows the container, so hide it again if there is no player.
+        pill.refresh();
     }
 }
