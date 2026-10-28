@@ -20,6 +20,12 @@ const CHOICES = {
     'icon-mode': [['app', 'App icon'], ['cover', 'Song cover'], ['alternate', 'Alternate between them']],
     'label-show': [['both', 'Title and artist'], ['title', 'Title only'], ['artist', 'Artist only']],
     'popup-effect': [['blur', 'Blurred cover'], ['bleed', 'Cover bleed'], ['glass', 'Glass']],
+    'wave-pill-style': [
+        ['wave', 'Wave'],
+        ['bars', 'Equalizer bars'],
+        ['peaks', 'Equalizer bars with peaks'],
+        ['led', 'Equalizer blocks'],
+    ],
     'wave-color-mode': [['blue', 'Light blue'], ['cover', 'From the song cover'], ['custom', 'Custom']],
     'player-filter-mode': [
         ['all', 'All players'],
@@ -251,6 +257,10 @@ export default class BetterMediaControllerPreferences extends ExtensionPreferenc
         const s = this._settings;
         const show = this._group('Show waves on');
         show.add(this._switchRow('wave-pill', 'Panel pill'));
+        const style = this._comboRow('wave-pill-style', 'Panel pill style',
+            'The equalizer runs behind the track name');
+        this._dependsOn(style, 'wave-pill', () => s.get_boolean('wave-pill'));
+        show.add(style);
         show.add(this._switchRow('wave-popup', 'Popup'));
 
         const look = this._group('Look');

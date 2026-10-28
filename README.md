@@ -36,6 +36,13 @@ faded at both ends, pumped by a simulated beat. The pill's wave is filled; the
 popup's is an outline. A wave runs only while it is on screen and its player is
 playing. On pause it eases flat in about a second and then stops completely.
 
+**Equalizer.** Instead of the wave, the pill can show a simulated equalizer behind
+the track name only (`wave-pill-style`): plain bars, bars with falling peak caps,
+or stacked blocks. The bars rise from the bottom and fade out at both ends of the
+label. Like the wave, they follow a made-up beat, since MPRIS carries no audio
+levels; they use the same color, intensity and speed settings and the same
+start/stop rules.
+
 **Label.** A label wider than its box scrolls at a constant speed and loops: a
 copy of the text follows the original after a small gap, so it never stops or
 jumps back. It scrolls only while playing and returns to the start
@@ -102,6 +109,7 @@ changes apply live.
 | Popup corner radius (px, 0-66) | `popup-radius` | `22` |
 | Popup width (px, 360-560) | `popup-width` | `440` |
 | Wave in the pill | `wave-pill` | `true` |
+| Pill effect (`wave`, `bars`, `peaks`, `led`) | `wave-pill-style` | `wave` |
 | Wave in the popup | `wave-popup` | `true` |
 | Wave color (`blue`, `cover`, `custom`) | `wave-color-mode` | `blue` |
 | Custom wave color (lighter and darker shades are derived) | `wave-custom-color` | `#ff7ab6` |

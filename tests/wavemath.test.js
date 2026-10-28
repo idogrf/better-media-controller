@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import {check, finish} from './assert.js';
-import {LAYERS, envelope, beat, bandOffset} from '../wavemath.js';
+import {LAYERS, envelope, beat, bandOffset, eqTarget} from '../wavemath.js';
 
 check('3 layers', LAYERS.length === 3);
 check('envelope ends', Math.abs(envelope(0, 100)) < 1e-9 && Math.abs(envelope(100, 100)) < 1e-9);
@@ -29,4 +29,20 @@ for (let t = 0; t <= 20; t += 0.01) {
     hi = Math.max(hi, beat(t));
 }
 check('beat within [0.4, 1.15]', lo >= 0.4 && hi <= 1.15);
+let inRange = true;
+let lows = 0;
+let highs = 0;
+for (let t = 0; t <= 20; t += 0.013) {
+    for (let i = 0; i < 48; i++) {
+        const v = eqTarget(i / 47, t, i * 2.4);
+        if (!(v >= 0 && v <= 1))
+            inRange = false;
+        if (i < 8)
+            lows += v;
+        else if (i >= 40)
+            highs += v;
+    }
+}
+check('eqTarget within [0, 1]', inRange);
+check('eqTarget lows louder than highs', lows > highs);
 finish();

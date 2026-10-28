@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // The panel pill: wave behind an icon (app/cover cross-fade), a marquee label
-// and prev/play/next buttons. Every timer goes through the pill's own Tracker.
+// (optionally with an equalizer behind it) and prev/play/next buttons. Every timer goes through the pill's own Tracker.
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
@@ -101,6 +101,9 @@ export const Pill = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
             height: HEIGHT,
         });
+        // The equalizer styles draw behind the label only; the wave spans the pill.
+        this._eq = new WaveArea({mode: 'bars', colors: BLUE, settings, name: 'eq', visible: false});
+        this._labelBox.add_child(this._eq);
         this._label = new St.Label({style_class: 'bmc-label'});
         // A trailing copy of the label, so the marquee loops without a jump.
         this._labelCopy = new Clutter.Clone({source: this._label, opacity: 0});
@@ -186,6 +189,7 @@ export const Pill = GObject.registerClass({
             this._hasCover = false;
             this.container.hide();
             this._wave.setPlaying(false);
+            this._eq.setPlaying(false);
             this._syncMarquee();
             this._syncIconTimer();
             return;
@@ -212,6 +216,7 @@ export const Pill = GObject.registerClass({
             'background-color: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.13);';
         this._appIcon.icon_size = Math.round(size * 0.7);
         this._labelBox.width = s.get_int('label-width');
+        this._eq.set_size(s.get_int('label-width'), HEIGHT);
         // Without scrolling the label is clamped to the box so it ellipsizes.
         this._label.set_width(s.get_boolean('label-scroll') ? -1 : s.get_int('label-width'));
         this._placeLabel();
@@ -368,18 +373,26 @@ export const Pill = GObject.registerClass({
     _applyWave() {
         const s = this._settings;
         const p = this._player;
-        this._wave.visible = s.get_boolean('wave-pill');
-        this._wave.setIntensity(s.get_int('wave-intensity'));
-        this._wave.setSpeed(s.get_int('wave-speed'));
-        this._wave.setPlaying(p.status === 'Playing');
+        const style = s.get_string('wave-pill-style');
+        this._wave.visible = s.get_boolean('wave-pill') && style === 'wave';
+        this._eq.visible = s.get_boolean('wave-pill') && style !== 'wave';
+        if (style !== 'wave')
+            this._eq.setMode(style);
+        for (const area of [this._wave, this._eq]) {
+            area.setIntensity(s.get_int('wave-intensity'));
+            area.setSpeed(s.get_int('wave-speed'));
+            area.setPlaying(p.status === 'Playing');
+        }
         const key = `${s.get_string('wave-color-mode')}|${s.get_string('wave-custom-color')}|${this._coverUri}`;
         if (key === this._colorKey)
             return;
         this._colorKey = key;
         const token = ++this._colorToken;
         waveColors(s, this._coverUri).then(colors => {
-            if (!this._destroyed && token === this._colorToken)
+            if (!this._destroyed && token === this._colorToken) {
                 this._wave.setColors(colors);
+                this._eq.setColors(colors);
+            }
         });
     }
 

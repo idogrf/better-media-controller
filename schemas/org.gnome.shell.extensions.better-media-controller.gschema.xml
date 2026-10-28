@@ -113,6 +113,11 @@
       <default>true</default>
       <summary>Show the wave animation in the pill</summary>
     </key>
+    <key name="wave-pill-style" type="s">
+      <default>'wave'</default>
+      <choices><choice value="wave"/><choice value="bars"/><choice value="peaks"/><choice value="led"/></choices>
+      <summary>Pill effect: the wave across the pill, or an equalizer behind the label</summary>
+    </key>
     <key name="wave-popup" type="b">
       <default>true</default>
       <summary>Show the wave animation in the popup</summary>
