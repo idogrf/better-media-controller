@@ -14,6 +14,12 @@ export default class BetterMediaController extends Extension {
             debugLog(this._settings, `players ${list.join(' ')}`);
         });
         this._watcher.start();
+        // TEMP: Task 7 replaces this position probe.
+        tracker.addTimeout(2000, () => {
+            for (const p of this._watcher.players)
+                p.positionUs().then(us => debugLog(this._settings, `pos ${p.id} ${us}`));
+            return true;
+        });
         const {sources, signals} = totals();
         debugLog(this._settings, `stats enable sources=${sources} signals=${signals}`);
     }

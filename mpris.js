@@ -29,12 +29,13 @@ const NODE = Gio.DBusNodeInfo.new_for_xml(XML);
 
 // One live player. Fields are plain data; the watcher owns the proxies.
 class PlayerProxy {
-    constructor(id, root, player, tracker, onChange) {
+    constructor(id, root, player, tracker, onChange, getCancellable) {
         this.id = id;
         this._root = root;
         this._player = player;
         this._tracker = tracker;
         this._onChange = onChange;
+        this._getCancellable = getCancellable;
         this.status = 'Stopped';
         this.playingSince = 0;
         this.lastActive = 0;
@@ -73,17 +74,29 @@ class PlayerProxy {
         this.lengthUs = Number(md['mpris:length']) || 0;
     }
 
-    // Position has no change signal, so read it when asked; 0 on any failure.
+    // Position has no change signal, so read it when asked. Async so a busy
+    // player cannot stall the shell; resolves to 0 on any error or after stop().
     positionUs() {
-        try {
-            const res = this._player.get_connection().call_sync(
-                this.id, OBJ, 'org.freedesktop.DBus.Properties', 'Get',
-                new GLib.Variant('(ss)', [PLAYER_IFACE, 'Position']),
-                new GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, 200, null);
-            return Number(res.recursiveUnpack()[0]) || 0;
-        } catch (_e) {
-            return 0;
-        }
+        const cancellable = this._getCancellable();
+        if (!cancellable || !this._player)
+            return Promise.resolve(0);
+        return new Promise(resolve => {
+            try {
+                this._player.get_connection().call(
+                    this.id, OBJ, 'org.freedesktop.DBus.Properties', 'Get',
+                    new GLib.Variant('(ss)', [PLAYER_IFACE, 'Position']),
+                    new GLib.VariantType('(v)'), Gio.DBusCallFlags.NONE, 200, cancellable,
+                    (conn, res) => {
+                        try {
+                            resolve(Number(conn.call_finish(res).recursiveUnpack()[0]) || 0);
+                        } catch (_e) {
+                            resolve(0);
+                        }
+                    });
+            } catch (_e) {
+                resolve(0);
+            }
+        });
     }
 
     playPause() {
@@ -109,6 +122,7 @@ class PlayerProxy {
     }
 }
 
+// Single-use: stop() destroys the Tracker it was given, so create a new watcher to restart.
 export class MprisWatcher extends EventEmitter {
     constructor(tracker, settings) {
         super();
@@ -183,7 +197,7 @@ export class MprisWatcher extends EventEmitter {
             return;
         this._pending.add(name);
         const make = (iface, cb) => Gio.DBusProxy.new_for_bus(
-            Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, NODE.lookup_interface(iface),
+            Gio.BusType.SESSION, Gio.DBusProxyFlags.GET_INVALIDATED_PROPERTIES, NODE.lookup_interface(iface),
             name, OBJ, iface, this._cancellable, (_o, res) => {
                 let proxy;
                 try {
@@ -202,7 +216,7 @@ export class MprisWatcher extends EventEmitter {
             // The name may have vanished while the proxies were being built.
             if (!root.get_name_owner() || !player.get_name_owner())
                 return;
-            const p = new PlayerProxy(name, root, player, this._tracker, () => this.emit('changed'));
+            const p = new PlayerProxy(name, root, player, this._tracker, () => this.emit('changed'), () => this._cancellable);
             this._players.set(name, p);
             this._remember(p.appKey);
             this.emit('changed');
