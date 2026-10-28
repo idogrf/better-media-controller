@@ -15,9 +15,13 @@ export class Tracker {
     // Repeats while fn returns true; a source that finishes is dropped.
     addTimeout(ms, fn) {
         const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
-            const again = fn() === true;
-            if (!again)
-                this._sources.delete(id);
+            let again = false;
+            try {
+                again = fn() === true;
+            } finally {
+                if (!again)
+                    this._sources.delete(id);
+            }
             return again ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
         });
         this._sources.add(id);
@@ -26,9 +30,13 @@ export class Tracker {
 
     addIdle(fn) {
         const id = GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            const again = fn() === true;
-            if (!again)
-                this._sources.delete(id);
+            let again = false;
+            try {
+                again = fn() === true;
+            } finally {
+                if (!again)
+                    this._sources.delete(id);
+            }
             return again ? GLib.SOURCE_CONTINUE : GLib.SOURCE_REMOVE;
         });
         this._sources.add(id);
@@ -68,6 +76,11 @@ export class Tracker {
             }
         }
         this._signals = [];
+    }
+
+    destroy() {
+        this.clear();
+        trackers.delete(this);
     }
 
     get counts() {

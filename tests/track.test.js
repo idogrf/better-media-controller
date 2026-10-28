@@ -71,4 +71,20 @@ t.clear();
 t2.clear();
 check('totals back to 0/0', totals().sources === 0 && totals().signals === 0);
 
+// A throwing callback still drops its source from the count.
+const t3 = new Tracker();
+t3.addTimeout(10, () => {
+    throw new Error('expected test error');
+});
+spin(60);
+check('throwing source is dropped', t3.counts.sources === 0);
+
+// destroy() clears and unregisters the tracker from totals().
+t3.addTimeout(100000, () => true);
+t3.connect(e, 'ping', () => {});
+check('t3 counted in totals', totals().sources === 1 && totals().signals === 1);
+t3.destroy();
+check('destroy clears t3', t3.counts.sources === 0 && t3.counts.signals === 0);
+check('destroy unregisters t3', totals().sources === 0 && totals().signals === 0);
+
 finish();
