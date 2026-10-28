@@ -31,7 +31,14 @@ body() {
     shot() { bash "$HEADLESS_DIR/send.sh" "shot $SHOTS/$1.png" && echo "$1.png" >> "$RUN_DIR/shots.list"; }
     cmd() { echo "$2" >> "$RUN_DIR/mpris-$1.cmd"; }
     count() { grep -c -- "$1" "$LOG"; }
-    click_pill() { bash "$HEADLESS_DIR/send.sh" "click 710 16"; }
+    # Clicks the pill and requires a toggle-popup line afterwards; records a FAIL otherwise.
+    click_pill() {
+        local t=$(count 'toggle-popup')
+        bash "$HEADLESS_DIR/send.sh" "click 710 16"
+        wait_count 'toggle-popup' "$t" && return 0
+        res "click pill" FAIL "no toggle-popup line after a pill click (context: $1)"
+        return 1
+    }
     player() {
         (setsid nohup python3 "$HEADLESS_DIR/fake_mpris.py" "$1" "$HEADLESS_DIR/playlists/$1.json" \
             > "$RUN_DIR/mpris-$1.out" 2>&1 &)
@@ -62,6 +69,12 @@ body() {
     bash "$HEADLESS_DIR/fixtures.sh" > /dev/null
     bash "$HEADLESS_DIR/send.sh" 'key ff1b'   # close the Overview the shell starts in
     sleep 1
+    local real_monitor; real_monitor=$(grep -- 'Will monitor session' "$LOG" | grep -vc 'session bmc-headless')
+    if [ "$real_monitor" = 0 ]; then
+        res "0 no logind session monitored" PASS "the only 'Will monitor session' line is for the bogus id bmc-headless (no logind session attached)"
+    else
+        res "0 no logind session monitored" FAIL "$real_monitor 'Will monitor session' line(s) for a real session id: the shell attached to logind"
+    fi
     shot 01-no-player
     set_key panel-side left; sleep 1.5; shot 02-no-player-left; set_key panel-side center; sleep 1
 
@@ -82,7 +95,7 @@ body() {
     set_key hide-when-paused false; set_key hide-delay 30
 
     # ---- popup, one player, each effect ----
-    click_pill; sleep 1.5
+    click_pill popup-one; sleep 1.5
     for e in blur bleed glass; do
         set_key popup-effect $e; sleep 1.2
         case $e in blur) n=13;; bleed) n=14;; glass) n=15;; esac
@@ -97,14 +110,14 @@ body() {
 
     # ---- popup, two players ----
     player brave; sleep 2
-    click_pill; sleep 1.5; shot 19-popup-two
+    click_pill popup-two; sleep 1.5; shot 19-popup-two
     shot 00-overview
     cmd brave quit; sleep 1.5; shot 20-popup-one-after-quit
     cmd spotify quit; sleep 1.5; shot 21-popup-closed-pill-hidden
     player spotify; player brave; sleep 2
 
     # ---- check 3: rapid toggles, no frames while paused, CPU ----
-    local pid before after cpu_paused cpu_playing
+    local pid before after cpu_paused cpu_playing played
     pid=$(shell_pid)
     for _ in $(seq 10); do cmd spotify play; cmd spotify pause; done
     cmd brave pause
@@ -114,14 +127,21 @@ body() {
     after=$(count 'bmc-debug\] frame')
     cmd spotify play; cmd brave play; sleep 3
     cpu_playing=$(cpu "$pid" 5)
-    if [ "$before" = "$after" ]; then
-        res "3 no frames while paused" PASS "frame lines $before -> $after over 5 s paused; gnome-shell CPU paused ${cpu_paused}% vs playing ${cpu_playing}% (pid $pid)"
+    played=$(count 'bmc-debug\] frame')
+    # Positive control: frames and CPU must rise while playing, so a wave that never ran cannot pass.
+    local evidence="frame lines: $before -> $after over 5 s paused, then $after -> $played over 5 s playing; gnome-shell CPU paused ${cpu_paused}% vs playing ${cpu_playing}% (pid $pid)"
+    if [ "$before" = "$after" ] && [ "$played" -gt "$after" ] && awk -v a="$cpu_playing" -v b="$cpu_paused" 'BEGIN {exit !(a > b)}'; then
+        res "3 no frames while paused" PASS "$evidence"
     else
-        res "3 no frames while paused" FAIL "frame lines $before -> $after over 5 s paused; CPU paused ${cpu_paused}% playing ${cpu_playing}%"
+        res "3 no frames while paused" FAIL "$evidence"
     fi
 
     # ---- check 2: settings changed while the popup is open ----
-    click_pill; sleep 1.5
+    local ok2=1 o2 why2=""
+    o2=$(count 'popup open')
+    click_pill "check 2" || { ok2=0; why2="$why2 pill click failed;"; }
+    wait_count 'popup open' "$o2" || { ok2=0; why2="$why2 popup did not open;"; }
+    sleep 1
     n=$(count 'stats disable')
     set_key popup-radius 40; sleep 0.5
     set_key popup-effect glass; sleep 0.5
@@ -129,22 +149,27 @@ body() {
     set_key icon-mode cover; sleep 0.5
     set_key icon-interval 3; sleep 0.5
     set_key panel-side left; sleep 1; set_key panel-side center; sleep 1
-    gnome-extensions disable "$UUID"; wait_count 'stats disable' "$n"
+    gnome-extensions disable "$UUID"; wait_count 'stats disable' "$n" || { ok2=0; why2="$why2 no disable stats line;"; }
     local d2; d2=$(last_stats disable)
     for k in popup-radius popup-effect popup-width icon-mode icon-interval panel-side; do gsettings reset "$B" $k; done
-    case "$d2" in *"sources=0 signals=0"*) res "2 settings changed while open" PASS "disable: $d2" ;;
-        *) res "2 settings changed while open" FAIL "disable: $d2" ;; esac
+    case "$d2" in *"sources=0 signals=0"*) [ $ok2 = 1 ] || d2="BAD PRECONDITIONS:$why2 $d2" ;; *) ok2=0 ;; esac
+    if [ $ok2 = 1 ]; then
+        res "2 settings changed while open" PASS "popup opened, settings changed, disable: $d2"
+    else
+        res "2 settings changed while open" FAIL "$why2 disable: $d2"
+    fi
 
     # ---- check 1: 10 x (enable, play, open popup, disable) ----
-    local i ok=1 first="" ev="" polls p0 t0 en dis
+    local i ok=1 first="" ev="" o1 en dis
     for i in $(seq 10); do
         n=$(count 'stats enable')
         gnome-extensions enable "$UUID"; wait_count 'stats enable' "$n" || ok=0
         en=$(last_stats enable)
         cmd spotify play; cmd brave play; sleep 1.5
-        t0=$(count 'toggle-popup')
-        click_pill; sleep 1
-        [ "$(count 'toggle-popup')" -gt "$t0" ] || ok=0
+        o1=$(count 'popup open')
+        click_pill "check 1 cycle $i" || ok=0
+        wait_count 'popup open' "$o1" || ok=0
+        sleep 1
         n=$(count 'stats disable')
         gnome-extensions disable "$UUID"; wait_count 'stats disable' "$n" || ok=0
         dis=$(last_stats disable)

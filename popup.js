@@ -469,6 +469,7 @@ export class PopupStack {
             return;
         }
 
+        debugLog(this._settings, 'popup open');
         this._tracker.connect(this._watcher, 'changed', () => this._sync());
         this._tracker.connect(this._settings, 'changed', (_s, key) => {
             if (key.startsWith('popup-') || key.startsWith('wave-') || key.startsWith('player-filter')) {
@@ -513,6 +514,7 @@ export class PopupStack {
         if (!this._open)
             return;
         this._open = false;
+        debugLog(this._settings, 'popup close');
         this._tracker.destroy();
         this._tracker = null;
         this._pollId = null;
