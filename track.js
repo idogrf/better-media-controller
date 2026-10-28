@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Lifecycle tracker: owns every GLib source and signal handler so disable()
 // can tear everything down in one call.
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
 const trackers = new Set();
@@ -9,6 +10,7 @@ export class Tracker {
     constructor() {
         this._sources = new Set();
         this._signals = [];
+        this._cancellables = new Set();
         trackers.add(this);
     }
 
@@ -64,7 +66,23 @@ export class Tracker {
         obj.disconnect(handlerId);
     }
 
+    // A Gio.Cancellable owned by this tracker: cancelled by cancel() or clear().
+    newCancellable() {
+        const c = new Gio.Cancellable();
+        this._cancellables.add(c);
+        return c;
+    }
+
+    cancel(c) {
+        if (!c || !this._cancellables.delete(c))
+            return;
+        c.cancel();
+    }
+
     clear() {
+        for (const c of this._cancellables)
+            c.cancel();
+        this._cancellables.clear();
         for (const id of this._sources)
             GLib.source_remove(id);
         this._sources.clear();

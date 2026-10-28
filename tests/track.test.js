@@ -87,4 +87,13 @@ t3.destroy();
 check('destroy clears t3', t3.counts.sources === 0 && t3.counts.signals === 0);
 check('destroy unregisters t3', totals().sources === 0 && totals().signals === 0);
 
+const tc = new Tracker();
+const c1 = tc.newCancellable();
+const c2 = tc.newCancellable();
+tc.cancel(c1);
+check('cancel() cancels that cancellable', c1.is_cancelled() && !c2.is_cancelled());
+tc.cancel(c1);
+tc.clear();
+check('clear cancels the rest', c2.is_cancelled());
+tc.destroy();
 finish();
