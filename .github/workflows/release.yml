@@ -1,0 +1,35 @@
+# Build the extension zip on every push. On a v* tag, also publish it as a release.
+name: Build and release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gnome-extensions
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gnome-shell
+
+      - name: Pack
+        run: sh pack.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: dist/*.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes
