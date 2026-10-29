@@ -25,7 +25,8 @@ a lighter replacement for Advanced Media Controller.
 - **Popup backgrounds.** Each card can sit on a blurred copy of the cover, a
   cover bleed, or glass.
 - **Choose your players.** Show all players, only the ones you tick, or all
-  except the ones you tick. Every tab of a browser counts as one player.
+  except the ones you tick. All tabs of a browser share one entry in that
+  list.
 - **Replaces GNOME's media card.** GNOME's own player in the notification list
   is hidden while the extension is on (you can turn that off).
 - **Hide when paused.** Optionally, the pill shrinks away after playback has
