@@ -13,7 +13,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {BLUE} from './colors.js';
-import {appIconFor} from './applogo.js';
+import {appFor, appIconFor} from './applogo.js';
 import {coverPixbuf, resolveCover, waveColors} from './covers.js';
 import {activePlayer, popupOrder, visiblePlayers} from './players.js';
 import {Tracker, debugLog} from './track.js';
@@ -213,9 +213,28 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
     }
 });
 
+// Brings a player forward: its own Raise() when it supports it, else the app's window
+// whose title contains the track title (a browser window showing the playing tab), else
+// the app's most recently used window.
+function bringForward(player) {
+    if (player.canRaise) {
+        player.raise();
+        return;
+    }
+    const app = appFor(player.desktopEntry, player.identity);
+    if (!app)
+        return;
+    const win = player.title ? app.get_windows().find(w => w.get_title()?.includes(player.title)) : null;
+    if (win)
+        Main.activateWindow(win);
+    else
+        app.activate();
+}
+
 const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
     _init(settings, player, isOpen) {
-        super._init({layout_manager: new Clutter.BinLayout()});
+        // Reactive so a click on the card reports the card, not the stack behind it.
+        super._init({layout_manager: new Clutter.BinLayout(), reactive: true});
         this._settings = settings;
         this._player = player;
         this._isOpen = isOpen;
@@ -285,6 +304,10 @@ const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
 
     get id() {
         return this._player.id;
+    }
+
+    get player() {
+        return this._player;
     }
 
     _button(iconName, size, main, cb) {
@@ -536,10 +559,24 @@ export class PopupStack {
     }
 
     // With the modal grab, clicks outside the stack are delivered to the stack actor.
+    // A click on a card, away from its buttons, closes the popup and brings that
+    // card's player forward.
     _onClick(gesture) {
         const target = global.stage.get_event_actor(gesture.get_point_event(0));
-        if (!this._actor?.contains(target))
+        if (!this._actor?.contains(target)) {
             this.close();
+            return;
+        }
+        const card = this._cards.find(c => c.contains(target));
+        for (let a = target; a && a !== card; a = a.get_parent()) {
+            if (a instanceof St.Button)
+                return;
+        }
+        if (!card)
+            return;
+        const player = card.player;
+        this.close();
+        bringForward(player);
     }
 
     _list() {

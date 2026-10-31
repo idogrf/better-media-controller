@@ -66,6 +66,7 @@ class PlayerProxy {
     _readRoot() {
         this.identity = this._root.get_cached_property('Identity')?.unpack() ?? '';
         this.desktopEntry = this._root.get_cached_property('DesktopEntry')?.unpack() ?? '';
+        this.canRaise = this._root.get_cached_property('CanRaise')?.unpack() ?? false;
         this.appKey = appKey(this.desktopEntry, this.identity);
     }
 
@@ -140,6 +141,11 @@ class PlayerProxy {
 
     previous() {
         this._call('Previous');
+    }
+
+    // Asks the player to show its own window; only meaningful when canRaise.
+    raise() {
+        this._root.call('Raise', null, Gio.DBusCallFlags.NONE, -1, null, null);
     }
 
     _call(method) {

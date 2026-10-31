@@ -16,6 +16,11 @@ a lighter replacement for Advanced Media Controller.
 - **One card per player.** The popup lists up to four players. Press play on
   any card and that player takes over the pill, with its card moving to the
   top.
+- **Jump to the player.** Click a card anywhere but its buttons to bring that
+  player's window to the front. For a browser, that is the window whose
+  current tab is the one playing, when there is one; a tab playing in the
+  background of a window can't be told apart, so the browser's last used
+  window comes up instead.
 - **A pill effect to your taste.** A wave across the whole pill, or an
   equalizer behind the track name: plain bars, bars with falling peaks, or
   stacked blocks. The color can be light blue, taken from the song cover, or

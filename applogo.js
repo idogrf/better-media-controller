@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Finds a player's own app logo: DesktopEntry.desktop, then heuristic basename, then the
+// Finds a player's own app: DesktopEntry.desktop, then heuristic basename, then the
 // desktop wmclass, then the MPRIS Identity matched against app names. Null if none matches.
 import Shell from 'gi://Shell';
 
-export function appIconFor(desktopEntry, identity) {
+export function appFor(desktopEntry, identity) {
     try {
         const sys = Shell.AppSystem.get_default();
         let app = null;
@@ -18,8 +18,12 @@ export function appIconFor(desktopEntry, identity) {
             if (info)
                 app = sys.lookup_app(info.get_id());
         }
-        return app?.get_icon() ?? null;
+        return app;
     } catch (_e) {
         return null;
     }
+}
+
+export function appIconFor(desktopEntry, identity) {
+    return appFor(desktopEntry, identity)?.get_icon() ?? null;
 }
