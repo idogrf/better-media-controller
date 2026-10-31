@@ -127,6 +127,10 @@ export const Pill = GObject.registerClass({
         this._controls.add_child(this._prev);
         this._controls.add_child(this._play);
         this._controls.add_child(this._next);
+        // Parented right away, in the default order (_applyLayout reorders them), so a
+        // pill destroyed before any player appears destroys them too.
+        for (const part of [this._iconBox, this._labelBox, this._controls])
+            this._row.add_child(part);
 
         // Clicks on the pill itself (not on its buttons) toggle the popup.
         const click = new Clutter.ClickGesture();
