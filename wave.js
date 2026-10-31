@@ -168,14 +168,13 @@ export const WaveArea = GObject.registerClass(class WaveArea extends St.DrawingA
     }
 
     _drawWave(cr, w, h, op) {
-        // Nothing may draw outside the pill's rounded ends.
+        // Nothing may draw outside the rounded corners (a full capsule for the pill).
         const r = Math.min(this._clipRadius ?? h / 2, h / 2, w / 2);
         cr.newPath();
-        cr.moveTo(r, 0);
-        cr.lineTo(w - r, 0);
-        cr.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2);
-        cr.lineTo(r, h);
-        cr.arc(r, r, r, Math.PI / 2, 3 * Math.PI / 2);
+        cr.arc(w - r, r, r, -Math.PI / 2, 0);
+        cr.arc(w - r, h - r, r, 0, Math.PI / 2);
+        cr.arc(r, h - r, r, Math.PI / 2, Math.PI);
+        cr.arc(r, r, r, Math.PI, 3 * Math.PI / 2);
         cr.closePath();
         cr.clip();
         const k = this._mode === 'pulse' ? beat(this._t) : 1;
