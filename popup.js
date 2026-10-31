@@ -213,22 +213,26 @@ const CardBg = GObject.registerClass(class CardBg extends St.DrawingArea {
     }
 });
 
-// Brings a player forward: its own Raise() when it supports it, else the app's window
-// whose title contains the track title (a browser window showing the playing tab), else
-// the app's most recently used window.
+// Brings a player's window forward. The shell focuses it directly, which needs no
+// activation token; a player's own Raise() comes last, because on Wayland most players
+// have no token and GNOME then only posts a "... is ready" notification.
+// The windows come from the player's process (browsers name their player
+// "<browser>.instance<pid>" and give no desktop entry), else from its app. The one whose
+// title holds the track wins (a browser window showing the playing tab), else the most
+// recently used one.
 function bringForward(player) {
-    if (player.canRaise) {
-        player.raise();
-        return;
-    }
-    const app = appFor(player.desktopEntry, player.identity);
-    if (!app)
-        return;
-    const win = player.title ? app.get_windows().find(w => w.get_title()?.includes(player.title)) : null;
+    const pid = Number(/\.instance(\d+)$/.exec(player.id)?.[1] ?? 0);
+    const app = (pid ? Shell.WindowTracker.get_default().get_app_from_pid(pid) : null) ??
+        appFor(player.desktopEntry, player.identity);
+    const windows = app?.get_windows() ?? [];
+    const match = player.title ? windows.find(w => w.get_title()?.includes(player.title)) : undefined;
+    const win = match ?? windows[0];
     if (win)
         Main.activateWindow(win);
+    else if (player.canRaise)
+        player.raise();
     else
-        app.activate();
+        app?.activate();
 }
 
 const PlayerCard = GObject.registerClass(class PlayerCard extends St.Widget {
